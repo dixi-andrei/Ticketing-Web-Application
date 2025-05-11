@@ -20,6 +20,7 @@ public class VenueController {
     private VenueService venueService;
 
     @GetMapping
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<List<Venue>> getAllVenues() {
         List<Venue> venues = venueService.getAllVenues();
         return new ResponseEntity<>(venues, HttpStatus.OK);

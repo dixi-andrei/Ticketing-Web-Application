@@ -29,6 +29,7 @@ public class EventController {
     private EventService eventService;
 
     @GetMapping
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<List<Event>> getAllEvents() {
         List<Event> events = eventService.getAllEvents();
         return new ResponseEntity<>(events, HttpStatus.OK);

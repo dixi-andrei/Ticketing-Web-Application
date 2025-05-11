@@ -145,6 +145,8 @@ public class TicketController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+
+
     @PostMapping("/{id}/use")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HttpStatus> markTicketAsUsed(@PathVariable Long id) {
