@@ -41,6 +41,7 @@ public class Ticket {
 
     private Boolean isUsed = false;
 
+    @Column(columnDefinition = "TEXT")
     private String qrCodeUrl;
 
     @ManyToOne

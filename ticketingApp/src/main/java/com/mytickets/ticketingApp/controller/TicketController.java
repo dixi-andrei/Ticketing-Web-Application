@@ -1,7 +1,13 @@
 package com.mytickets.ticketingApp.controller;
 
+import com.mytickets.ticketingApp.exception.ResourceNotFoundException;
+import com.mytickets.ticketingApp.model.Event;
+import com.mytickets.ticketingApp.model.PricingTier;
 import com.mytickets.ticketingApp.model.Ticket;
 import com.mytickets.ticketingApp.model.TicketStatus;
+import com.mytickets.ticketingApp.repository.EventRepository;
+import com.mytickets.ticketingApp.repository.PricingTierRepository;
+import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.security.services.UserDetailsImpl;
 import com.mytickets.ticketingApp.service.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +18,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -23,6 +28,14 @@ public class TicketController {
 
     @Autowired
     private TicketService ticketService;
+    @Autowired
+    private EventRepository eventRepository;
+
+    @Autowired
+    private TicketRepository ticketRepository;
+
+    @Autowired
+    private PricingTierRepository pricingTierRepository;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -71,24 +84,82 @@ public class TicketController {
         return new ResponseEntity<>(tickets, HttpStatus.OK);
     }
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Ticket> createTicket(@Valid @RequestBody Ticket ticket) {
-        Ticket newTicket = ticketService.createTicket(ticket);
-        return new ResponseEntity<>(newTicket, HttpStatus.CREATED);
-    }
 
+        @PostMapping
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Ticket> createTicket(@Valid @RequestBody Ticket ticket) {
+            Ticket newTicket = ticketService.createTicket(ticket);
+            return new ResponseEntity<>(newTicket, HttpStatus.CREATED);
+        }
+    /*
+        @PostMapping("/batch")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<List<Ticket>> createTicketsForEvent(
+                @RequestParam Long eventId,
+                @RequestParam Long pricingTierId,
+                @RequestParam int quantity) {
+
+            List<Ticket> tickets = ticketService.createTicketsForEvent(eventId, pricingTierId, quantity);
+            return new ResponseEntity<>(tickets, HttpStatus.CREATED);
+        }
+*/
     @PostMapping("/batch")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Ticket>> createTicketsForEvent(
+    public ResponseEntity<List<Ticket>> createTicketsBatch(
             @RequestParam Long eventId,
             @RequestParam Long pricingTierId,
             @RequestParam int quantity) {
 
-        List<Ticket> tickets = ticketService.createTicketsForEvent(eventId, pricingTierId, quantity);
-        return new ResponseEntity<>(tickets, HttpStatus.CREATED);
-    }
+        try {
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
 
+            PricingTier pricingTier = pricingTierRepository.findById(pricingTierId)
+                    .orElseThrow(() -> new ResourceNotFoundException("PricingTier", "id", pricingTierId));
+
+            List<Ticket> tickets = new ArrayList<>();
+
+            for (int i = 0; i < quantity; i++) {
+                Ticket ticket = new Ticket();
+                ticket.setTicketNumber(UUID.randomUUID().toString());
+                ticket.setOriginalPrice(pricingTier.getPrice());
+                ticket.setCurrentPrice(pricingTier.getPrice());
+                ticket.setStatus(TicketStatus.AVAILABLE);
+                ticket.setEvent(event);
+                ticket.setPricingTier(pricingTier);
+
+                // Use a shorter QR code or placeholder
+                String qrCodeContent = "TICKET:" + ticket.getTicketNumber();
+                // Optional: generate a smaller QR code or skip for now
+                ticket.setQrCodeUrl("placeholder-" + ticket.getTicketNumber());
+
+                tickets.add(ticketRepository.save(ticket));
+            }
+
+            // Update event ticket counts
+            int totalTickets = event.getTotalTickets() != null ? event.getTotalTickets() : 0;
+            event.setTotalTickets(totalTickets + quantity);
+
+            int availableTickets = event.getAvailableTickets() != null ? event.getAvailableTickets() : 0;
+            event.setAvailableTickets(availableTickets + quantity);
+
+            eventRepository.save(event);
+
+            // Update pricing tier counts
+            int tierQuantity = pricingTier.getQuantity() != null ? pricingTier.getQuantity() : 0;
+            pricingTier.setQuantity(tierQuantity + quantity);
+
+            int tierAvailable = pricingTier.getAvailable() != null ? pricingTier.getAvailable() : 0;
+            pricingTier.setAvailable(tierAvailable + quantity);
+
+            pricingTierRepository.save(pricingTier);
+
+            return new ResponseEntity<>(tickets, HttpStatus.CREATED);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Ticket> updateTicket(@PathVariable Long id, @Valid @RequestBody Ticket ticket) {

@@ -25,17 +25,22 @@ import javax.imageio.ImageIO;
 @Service
 public class QRCodeServiceImpl implements QRCodeService {
 
-    @Override
     public String generateQRCodeAsBase64(String content, int width, int height) {
         try {
-            BufferedImage image = generateQRCodeImage(content, width, height);
+            // Use smaller dimensions to reduce the size of the base64 output
+            int smallerWidth = 100;  // Reduced from the likely 250 or higher
+            int smallerHeight = 100;
+
+            BufferedImage qrCodeImage = generateQRCodeImage(content, smallerWidth, smallerHeight);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", baos);
+            ImageIO.write(qrCodeImage, "png", baos);
             byte[] imageBytes = baos.toByteArray();
 
             return Base64.getEncoder().encodeToString(imageBytes);
-        } catch (IOException | WriterException e) {
-            throw new RuntimeException("Failed to generate QR code", e);
+        } catch (Exception e) {
+            // Log the error
+            System.err.println("Error generating QR code: " + e.getMessage());
+            throw new RuntimeException("Error generating QR code", e);
         }
     }
 
