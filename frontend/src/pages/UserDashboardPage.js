@@ -1,7 +1,7 @@
-// src/pages/UserDashboardPage.js
+import { cancelListing } from '../api/listingApi';// src/pages/UserDashboardPage.js
 import React, { useState, useEffect, useContext } from 'react';
-import { Container, Row, Col, Card, Tab, Nav, Badge, Button, Alert } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Container, Row, Col, Card, Tab, Nav, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import { Link, useLocation } from 'react-router-dom';
 import {
     getMyTickets,
     getMyUpcomingTickets,
@@ -17,6 +17,12 @@ import TicketDetail from '../components/tickets/TicketDetail';
 
 const UserDashboardPage = () => {
     const { currentUser } = useContext(AuthContext);
+    const location = useLocation();
+
+    // Get active tab from location state or default to 'upcoming'
+    const defaultActiveTab = location.state?.activeTab || 'upcoming';
+    const [activeTab, setActiveTab] = useState(defaultActiveTab);
+    const [activeSubTab, setActiveSubTab] = useState('purchases');
 
     const [tickets, setTickets] = useState([]);
     const [upcomingTickets, setUpcomingTickets] = useState([]);
@@ -45,165 +51,226 @@ const UserDashboardPage = () => {
     };
 
     const handleResellSuccess = () => {
-        // You would typically refetch listings here
+        // Refetch the listings and tickets data
+        fetchUserData();
+        // Show a success message
         alert('Ticket listed successfully!');
     };
 
-    useEffect(() => {
-        const fetchUserData = async () => {
-            try {
-                setLoading(true);
+    const handleCancelListing = async (listingId) => {
+        try {
+            // Call the API to cancel the listing
+            await cancelListing(listingId);
 
-                // Use Promise.all to fetch all data concurrently
-                const [
-                    ticketsRes,
-                    upcomingTicketsRes,
-                    listingsRes,
-                    purchasesRes,
-                    salesRes,
-                    totalPurchasesRes,
-                    totalSalesRes
-                ] = await Promise.all([
-                    getMyTickets().catch(() => ({ data: [] })),
-                    getMyUpcomingTickets().catch(() => ({ data: [] })),
-                    getMyListings().catch(() => ({ data: [] })),
-                    getMyPurchases().catch(() => ({ data: [] })),
-                    getMySales().catch(() => ({ data: [] })),
-                    getMyTotalPurchases().catch(() => ({ data: { total: 0 } })),
-                    getMyTotalSales().catch(() => ({ data: { total: 0 } }))
-                ]);
+            // Refetch the data
+            fetchUserData();
 
-                setTickets(ticketsRes.data);
-                setUpcomingTickets(upcomingTicketsRes.data);
-                setListings(listingsRes.data);
-                setPurchases(purchasesRes.data);
-                setSales(salesRes.data);
-                setTotalPurchases(totalPurchasesRes.data.total || 0);
-                setTotalSales(totalSalesRes.data.total || 0);
+            alert('Listing cancelled successfully');
+        } catch (err) {
+            console.error('Error cancelling listing:', err);
+            alert('Failed to cancel listing. Please try again.');
+        }
+    };
 
-                setLoading(false);
-            } catch (err) {
-                console.error('Error fetching user data:', err);
-                setError('Failed to load your data. Please try again later.');
-                setLoading(false);
+    const fetchUserData = async () => {
+        try {
+            setLoading(true);
+            setError('');
 
-                // Mock data for demonstration
-                const mockTickets = [
-                    {
-                        id: 1,
-                        ticketNumber: "TKT-12345",
-                        event: {
-                            id: 101,
-                            name: "Summer Music Festival",
-                            eventDate: "2025-07-15T18:00:00",
-                            venue: {
-                                name: "Central Park",
-                                city: "New York"
-                            }
-                        },
-                        section: "A",
-                        row: "5",
-                        seat: "23",
-                        originalPrice: 150.00,
-                        currentPrice: 150.00,
-                        status: "PURCHASED",
-                        purchaseDate: "2025-05-05T14:30:00"
-                    },
-                    {
-                        id: 2,
-                        ticketNumber: "TKT-67890",
-                        event: {
-                            id: 102,
-                            name: "Basketball Championship",
-                            eventDate: "2025-06-20T19:30:00",
-                            venue: {
-                                name: "Sports Arena",
-                                city: "Los Angeles"
-                            }
-                        },
-                        section: "B",
-                        row: "10",
-                        seat: "15",
-                        originalPrice: 100.00,
-                        currentPrice: 100.00,
-                        status: "PURCHASED",
-                        purchaseDate: "2025-05-10T09:15:00"
+            // Use Promise.all to fetch all data concurrently
+            const [
+                ticketsRes,
+                upcomingTicketsRes,
+                listingsRes,
+                purchasesRes,
+                salesRes,
+                totalPurchasesRes,
+                totalSalesRes
+            ] = await Promise.all([
+                getMyTickets().catch(() => ({ data: [] })),
+                getMyUpcomingTickets().catch(() => ({ data: [] })),
+                getMyListings().catch(() => ({ data: [] })),
+                getMyPurchases().catch(() => ({ data: [] })),
+                getMySales().catch(() => ({ data: [] })),
+                getMyTotalPurchases().catch(() => ({ data: { total: 0 } })),
+                getMyTotalSales().catch(() => ({ data: { total: 0 } }))
+            ]);
+
+            setTickets(ticketsRes.data || []);
+            setUpcomingTickets(upcomingTicketsRes.data || []);
+            setListings(listingsRes.data || []);
+            setPurchases(purchasesRes.data || []);
+            setSales(salesRes.data || []);
+            setTotalPurchases(totalPurchasesRes.data?.total || 0);
+            setTotalSales(totalSalesRes.data?.total || 0);
+
+            setLoading(false);
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+            setError('Failed to load your data. Please try again later.');
+            setLoading(false);
+
+            // Set mock data for demonstration if we can't get real data
+            setMockData();
+        }
+    };
+
+    const setMockData = () => {
+        // Mock tickets data
+        const mockTickets = [
+            {
+                id: 1,
+                ticketNumber: "TKT-12345",
+                event: {
+                    id: 101,
+                    name: "Summer Music Festival",
+                    eventDate: "2025-07-15T18:00:00",
+                    venue: {
+                        name: "Central Park",
+                        city: "New York"
                     }
-                ];
-
-                const mockListings = [
-                    {
-                        id: 1,
-                        ticket: {
-                            id: 3,
-                            ticketNumber: "TKT-24680",
-                            event: {
-                                id: 103,
-                                name: "Comedy Night",
-                                eventDate: "2025-06-05T20:00:00"
-                            },
-                            originalPrice: 80.00
-                        },
-                        askingPrice: 75.00,
-                        status: "ACTIVE",
-                        listingDate: "2025-05-12T11:20:00"
+                },
+                section: "A",
+                row: "5",
+                seat: "23",
+                originalPrice: 150.00,
+                currentPrice: 150.00,
+                status: "PURCHASED",
+                purchaseDate: "2025-05-05T14:30:00"
+            },
+            {
+                id: 2,
+                ticketNumber: "TKT-67890",
+                event: {
+                    id: 102,
+                    name: "Basketball Championship",
+                    eventDate: "2025-06-20T19:30:00",
+                    venue: {
+                        name: "Sports Arena",
+                        city: "Los Angeles"
                     }
-                ];
-
-                const mockTransactions = [
-                    {
-                        id: 1,
-                        transactionNumber: "TRX-12345",
-                        amount: 150.00,
-                        status: "COMPLETED",
-                        type: "PRIMARY_PURCHASE",
-                        transactionDate: "2025-05-05T14:30:00",
-                        ticket: {
-                            id: 1,
-                            event: {
-                                name: "Summer Music Festival"
-                            }
-                        }
-                    },
-                    {
-                        id: 2,
-                        transactionNumber: "TRX-67890",
-                        amount: 100.00,
-                        status: "COMPLETED",
-                        type: "PRIMARY_PURCHASE",
-                        transactionDate: "2025-05-10T09:15:00",
-                        ticket: {
-                            id: 2,
-                            event: {
-                                name: "Basketball Championship"
-                            }
-                        }
-                    }
-                ];
-
-                setTickets(mockTickets);
-                setUpcomingTickets(mockTickets);
-                setListings(mockListings);
-                setPurchases(mockTransactions);
-                setSales([]);
-                setTotalPurchases(250.00);
-                setTotalSales(0);
+                },
+                section: "B",
+                row: "10",
+                seat: "15",
+                originalPrice: 100.00,
+                currentPrice: 100.00,
+                status: "PURCHASED",
+                purchaseDate: "2025-05-10T09:15:00"
             }
-        };
+        ];
 
+        // Mock listings data
+        const mockListings = [
+            {
+                id: 1,
+                ticket: {
+                    id: 3,
+                    ticketNumber: "TKT-24680",
+                    event: {
+                        id: 103,
+                        name: "Comedy Night",
+                        eventDate: "2025-06-05T20:00:00"
+                    },
+                    originalPrice: 80.00
+                },
+                askingPrice: 75.00,
+                status: "ACTIVE",
+                listingDate: "2025-05-12T11:20:00"
+            }
+        ];
+
+        // Mock transactions data
+        const mockTransactions = [
+            {
+                id: 1,
+                transactionNumber: "TRX-12345",
+                amount: 150.00,
+                status: "COMPLETED",
+                type: "PRIMARY_PURCHASE",
+                transactionDate: "2025-05-05T14:30:00",
+                ticket: {
+                    id: 1,
+                    event: {
+                        name: "Summer Music Festival"
+                    }
+                }
+            },
+            {
+                id: 2,
+                transactionNumber: "TRX-67890",
+                amount: 100.00,
+                status: "COMPLETED",
+                type: "PRIMARY_PURCHASE",
+                transactionDate: "2025-05-10T09:15:00",
+                ticket: {
+                    id: 2,
+                    event: {
+                        name: "Basketball Championship"
+                    }
+                }
+            }
+        ];
+
+        setTickets(mockTickets);
+        setUpcomingTickets(mockTickets);
+        setListings(mockListings);
+        setPurchases(mockTransactions);
+        setSales([]);
+        setTotalPurchases(250.00);
+        setTotalSales(0);
+    };
+
+    useEffect(() => {
         fetchUserData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const formatDate = (dateString) => {
-        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        if (!dateString) return "Date not available";
+
+        try {
+            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return "Date format error";
+        }
     };
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD'
-        }).format(amount);
+            currency: 'USD',
+            minimumFractionDigits: 2
+        }).format(amount || 0);
+    };
+
+    const getStatusBadgeColor = (status) => {
+        switch (status) {
+            case "PURCHASED":
+            case "COMPLETED":
+            case "ACTIVE":
+                return "success";
+            case "LISTED":
+            case "PENDING":
+                return "warning";
+            case "SOLD":
+                return "primary";
+            case "USED":
+            case "CANCELLED":
+                return "secondary";
+            case "FAILED":
+                return "danger";
+            case "REFUNDED":
+                return "info";
+            default:
+                return "secondary";
+        }
+    };
+
+    const getInitials = (firstName, lastName) => {
+        return (firstName?.charAt(0) || "") + (lastName?.charAt(0) || "");
     };
 
     return (
@@ -218,7 +285,7 @@ const UserDashboardPage = () => {
                             <Row>
                                 <Col md={2} className="text-center mb-3 mb-md-0">
                                     <div className="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{ width: '80px', height: '80px' }}>
-                                        <span className="fs-1">{currentUser?.firstName?.charAt(0)}{currentUser?.lastName?.charAt(0)}</span>
+                                        <span className="fs-1">{getInitials(currentUser?.firstName, currentUser?.lastName)}</span>
                                     </div>
                                 </Col>
                                 <Col md={7}>
@@ -242,7 +309,7 @@ const UserDashboardPage = () => {
             {/* Dashboard Tabs */}
             <Row>
                 <Col>
-                    <Tab.Container id="dashboard-tabs" defaultActiveKey="upcoming">
+                    <Tab.Container id="dashboard-tabs" activeKey={activeTab} onSelect={(k) => setActiveTab(k)}>
                         <Card className="shadow-sm">
                             <Card.Header>
                                 <Nav variant="tabs">
@@ -263,7 +330,10 @@ const UserDashboardPage = () => {
                             <Card.Body>
                                 {loading ? (
                                     <div className="text-center py-5">
-                                        <p>Loading your dashboard...</p>
+                                        <Spinner animation="border" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </Spinner>
+                                        <p className="mt-3">Loading your dashboard...</p>
                                     </div>
                                 ) : error ? (
                                     <Alert variant="danger">{error}</Alert>
@@ -271,7 +341,7 @@ const UserDashboardPage = () => {
                                     <Tab.Content>
                                         {/* Upcoming Events Tab */}
                                         <Tab.Pane eventKey="upcoming">
-                                            {upcomingTickets.length > 0 ? (
+                                            {upcomingTickets && upcomingTickets.length > 0 ? (
                                                 <div className="table-responsive">
                                                     <table className="table table-hover">
                                                         <thead>
@@ -331,7 +401,7 @@ const UserDashboardPage = () => {
 
                                         {/* All Tickets Tab */}
                                         <Tab.Pane eventKey="tickets">
-                                            {tickets.length > 0 ? (
+                                            {tickets && tickets.length > 0 ? (
                                                 <div className="table-responsive">
                                                     <table className="table table-hover">
                                                         <thead>
@@ -341,6 +411,7 @@ const UserDashboardPage = () => {
                                                             <th>Ticket #</th>
                                                             <th>Price</th>
                                                             <th>Status</th>
+                                                            <th>Actions</th>
                                                         </tr>
                                                         </thead>
                                                         <tbody>
@@ -355,13 +426,18 @@ const UserDashboardPage = () => {
                                                                 <td>{ticket.ticketNumber}</td>
                                                                 <td>{formatCurrency(ticket.currentPrice)}</td>
                                                                 <td>
-                                                                    <Badge bg={
-                                                                        ticket.status === "PURCHASED" ? "success" :
-                                                                            ticket.status === "LISTED" ? "warning" :
-                                                                                ticket.status === "USED" ? "secondary" : "info"
-                                                                    }>
+                                                                    <Badge bg={getStatusBadgeColor(ticket.status)}>
                                                                         {ticket.status}
                                                                     </Badge>
+                                                                </td>
+                                                                <td>
+                                                                    <Button
+                                                                        variant="outline-primary"
+                                                                        size="sm"
+                                                                        onClick={() => handleViewTicketClick(ticket)}
+                                                                    >
+                                                                        View
+                                                                    </Button>
                                                                 </td>
                                                             </tr>
                                                         ))}
@@ -377,7 +453,7 @@ const UserDashboardPage = () => {
 
                                         {/* Listings Tab */}
                                         <Tab.Pane eventKey="listings">
-                                            {listings.length > 0 ? (
+                                            {listings && listings.length > 0 ? (
                                                 <div className="table-responsive">
                                                     <table className="table table-hover">
                                                         <thead>
@@ -402,11 +478,7 @@ const UserDashboardPage = () => {
                                                                 <td>{formatCurrency(listing.ticket.originalPrice)}</td>
                                                                 <td>{formatCurrency(listing.askingPrice)}</td>
                                                                 <td>
-                                                                    <Badge bg={
-                                                                        listing.status === "ACTIVE" ? "success" :
-                                                                            listing.status === "SOLD" ? "primary" :
-                                                                                "secondary"
-                                                                    }>
+                                                                    <Badge bg={getStatusBadgeColor(listing.status)}>
                                                                         {listing.status}
                                                                     </Badge>
                                                                 </td>
@@ -415,7 +487,7 @@ const UserDashboardPage = () => {
                                                                         <Button
                                                                             variant="outline-danger"
                                                                             size="sm"
-                                                                            onClick={() => alert("Cancellation would be processed here")}
+                                                                            onClick={() => handleCancelListing(listing.id)}
                                                                         >
                                                                             Cancel
                                                                         </Button>
@@ -438,19 +510,18 @@ const UserDashboardPage = () => {
                                             <Nav variant="pills" className="mb-3">
                                                 <Nav.Item>
                                                     <Nav.Link
-                                                        eventKey="purchases"
+                                                        active={activeSubTab === 'purchases'}
+                                                        onClick={() => setActiveSubTab('purchases')}
                                                         className="px-4 me-2"
-                                                        active={true}
-                                                        onClick={() => {}}
                                                     >
                                                         Purchases
                                                     </Nav.Link>
                                                 </Nav.Item>
                                                 <Nav.Item>
                                                     <Nav.Link
-                                                        eventKey="sales"
+                                                        active={activeSubTab === 'sales'}
+                                                        onClick={() => setActiveSubTab('sales')}
                                                         className="px-4"
-                                                        onClick={() => {}}
                                                     >
                                                         Sales
                                                     </Nav.Link>
@@ -458,47 +529,84 @@ const UserDashboardPage = () => {
                                             </Nav>
 
                                             {/* Purchases Sub-Tab */}
-                                            <div>
-                                                {purchases.length > 0 ? (
-                                                    <div className="table-responsive">
-                                                        <table className="table table-hover">
-                                                            <thead>
-                                                            <tr>
-                                                                <th>Transaction #</th>
-                                                                <th>Date</th>
-                                                                <th>Event</th>
-                                                                <th>Amount</th>
-                                                                <th>Status</th>
-                                                            </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                            {purchases.map((transaction) => (
-                                                                <tr key={transaction.id}>
-                                                                    <td>{transaction.transactionNumber}</td>
-                                                                    <td>{formatDate(transaction.transactionDate)}</td>
-                                                                    <td>{transaction.ticket?.event?.name}</td>
-                                                                    <td>{formatCurrency(transaction.amount)}</td>
-                                                                    <td>
-                                                                        <Badge bg={
-                                                                            transaction.status === "COMPLETED" ? "success" :
-                                                                                transaction.status === "PENDING" ? "warning" :
-                                                                                    transaction.status === "REFUNDED" ? "info" :
-                                                                                        "danger"
-                                                                        }>
-                                                                            {transaction.status}
-                                                                        </Badge>
-                                                                    </td>
+                                            {activeSubTab === 'purchases' && (
+                                                <>
+                                                    {purchases && purchases.length > 0 ? (
+                                                        <div className="table-responsive">
+                                                            <table className="table table-hover">
+                                                                <thead>
+                                                                <tr>
+                                                                    <th>Transaction #</th>
+                                                                    <th>Date</th>
+                                                                    <th>Event</th>
+                                                                    <th>Amount</th>
+                                                                    <th>Status</th>
                                                                 </tr>
-                                                            ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                ) : (
-                                                    <Alert variant="info">
-                                                        You don't have any purchase transactions yet.
-                                                    </Alert>
-                                                )}
-                                            </div>
+                                                                </thead>
+                                                                <tbody>
+                                                                {purchases.map((transaction) => (
+                                                                    <tr key={transaction.id}>
+                                                                        <td>{transaction.transactionNumber}</td>
+                                                                        <td>{formatDate(transaction.transactionDate)}</td>
+                                                                        <td>{transaction.ticket?.event?.name || "N/A"}</td>
+                                                                        <td>{formatCurrency(transaction.amount)}</td>
+                                                                        <td>
+                                                                            <Badge bg={getStatusBadgeColor(transaction.status)}>
+                                                                                {transaction.status}
+                                                                            </Badge>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ) : (
+                                                        <Alert variant="info">
+                                                            You don't have any purchase transactions yet.
+                                                        </Alert>
+                                                    )}
+                                                </>
+                                            )}
+
+                                            {/* Sales Sub-Tab */}
+                                            {activeSubTab === 'sales' && (
+                                                <>
+                                                    {sales && sales.length > 0 ? (
+                                                        <div className="table-responsive">
+                                                            <table className="table table-hover">
+                                                                <thead>
+                                                                <tr>
+                                                                    <th>Transaction #</th>
+                                                                    <th>Date</th>
+                                                                    <th>Event</th>
+                                                                    <th>Amount</th>
+                                                                    <th>Status</th>
+                                                                </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                {sales.map((transaction) => (
+                                                                    <tr key={transaction.id}>
+                                                                        <td>{transaction.transactionNumber}</td>
+                                                                        <td>{formatDate(transaction.transactionDate)}</td>
+                                                                        <td>{transaction.ticket?.event?.name || "N/A"}</td>
+                                                                        <td>{formatCurrency(transaction.amount)}</td>
+                                                                        <td>
+                                                                            <Badge bg={getStatusBadgeColor(transaction.status)}>
+                                                                                {transaction.status}
+                                                                            </Badge>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ) : (
+                                                        <Alert variant="info">
+                                                            You don't have any sales transactions yet. List your tickets for resale to start selling.
+                                                        </Alert>
+                                                    )}
+                                                </>
+                                            )}
                                         </Tab.Pane>
                                     </Tab.Content>
                                 )}

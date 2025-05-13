@@ -5,8 +5,26 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const TicketDetail = ({ ticket, onClose }) => {
     const formatDate = (dateString) => {
-        const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        if (!dateString) return "Date not available";
+        try {
+            const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+        } catch (e) {
+            console.error("Error formatting date:", e);
+            return "Date format error";
+        }
+    };
+
+    const handlePrint = () => {
+        const printContent = document.getElementById('printable-ticket');
+        const originalBody = document.body.innerHTML;
+
+        document.body.innerHTML = printContent.innerHTML;
+        window.print();
+        document.body.innerHTML = originalBody;
+
+        // Re-attach event handlers after restoring the original DOM
+        window.location.reload();
     };
 
     return (
@@ -14,13 +32,13 @@ const TicketDetail = ({ ticket, onClose }) => {
             <Modal.Header closeButton>
                 <Modal.Title>Ticket Details</Modal.Title>
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body id="printable-ticket">
                 <Row>
                     <Col md={8}>
                         <h4>{ticket.event?.name}</h4>
                         <p className="text-muted">{formatDate(ticket.event?.eventDate)}</p>
                         <p>
-                            <strong>Venue:</strong> {ticket.event?.venue?.name}, {ticket.event?.venue?.city}
+                            <strong>Venue:</strong> {ticket.event?.venue?.name || 'N/A'}, {ticket.event?.venue?.city || 'N/A'}
                         </p>
 
                         <hr />
@@ -62,7 +80,7 @@ const TicketDetail = ({ ticket, onClose }) => {
                         </Row>
 
                         <p>
-                            <strong>Price Paid:</strong> ${ticket.originalPrice.toFixed(2)}
+                            <strong>Price Paid:</strong> ${(ticket.originalPrice || 0).toFixed(2)}
                         </p>
 
                         <div className="mt-4">
@@ -74,18 +92,26 @@ const TicketDetail = ({ ticket, onClose }) => {
 
                     <Col md={4} className="text-center">
                         <div className="p-3 border rounded">
-                            <QRCodeSVG
-                                value={ticket.ticketNumber}
-                                size={200}
-                                level="H"
-                            />
+                            {ticket.qrCodeUrl ? (
+                                <img
+                                    src={`data:image/png;base64,${ticket.qrCodeUrl}`}
+                                    alt="Ticket QR Code"
+                                    style={{ width: '100%', maxWidth: '200px' }}
+                                />
+                            ) : (
+                                <QRCodeSVG
+                                    value={ticket.ticketNumber || 'TICKET'}
+                                    size={200}
+                                    level="H"
+                                />
+                            )}
                             <p className="mt-2 mb-0 small">Scan for entry</p>
                         </div>
 
                         <Button
                             variant="outline-primary"
                             className="mt-3 w-100"
-                            onClick={() => window.print()}
+                            onClick={handlePrint}
                         >
                             Print Ticket
                         </Button>

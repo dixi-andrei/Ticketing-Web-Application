@@ -4,6 +4,7 @@ import { Modal, Form, Button, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { Formik } from 'formik';
+import { createListing } from '../../api/listingApi';
 
 const TicketResellForm = ({ ticket, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -25,11 +26,12 @@ const TicketResellForm = ({ ticket, onClose, onSuccess }) => {
             setLoading(true);
             setError('');
 
-            // Here you would call your API to create the listing
-            // await createListing(ticket.id, values.askingPrice, values.description);
-
-            // For demo, just simulate a delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Call the API to create the listing
+            await createListing({
+                ticketId: ticket.id,
+                askingPrice: values.askingPrice,
+                description: values.description
+            });
 
             setLoading(false);
             setSubmitting(false);
@@ -45,7 +47,7 @@ const TicketResellForm = ({ ticket, onClose, onSuccess }) => {
 
         } catch (err) {
             console.error('Error creating listing:', err);
-            setError('Failed to create listing. Please try again.');
+            setError(err.response?.data?.message || 'Failed to create listing. Please try again.');
             setLoading(false);
             setSubmitting(false);
         }
@@ -65,7 +67,7 @@ const TicketResellForm = ({ ticket, onClose, onSuccess }) => {
                         })}
                     </p>
                     <p className="text-muted small">
-                        Original Price: ${ticket.originalPrice.toFixed(2)}
+                        Original Price: ${ticket.originalPrice?.toFixed(2)}
                     </p>
 
                     <Alert variant="info" className="mb-3">
@@ -100,7 +102,7 @@ const TicketResellForm = ({ ticket, onClose, onSuccess }) => {
                                     {errors.askingPrice}
                                 </Form.Control.Feedback>
                                 <Form.Text className="text-muted">
-                                    Maximum allowed: ${ticket.originalPrice.toFixed(2)}
+                                    Maximum allowed: ${ticket.originalPrice?.toFixed(2)}
                                 </Form.Text>
                             </Form.Group>
 

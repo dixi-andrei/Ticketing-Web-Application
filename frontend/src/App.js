@@ -16,43 +16,45 @@ import EventsPage from './pages/EventsPage';
 import EventDetailPage from './pages/EventDetailPage';
 import UserDashboardPage from './pages/UserDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ResaleMarketplacePage from './pages/ResaleMarketplacePage';
 
 function App() {
-  return (
-      <AuthProvider>
-        <Router>
-          <div className="app-container">
-            <Header />
-            <main className="main-content">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/events" element={<EventsPage />} />
-                <Route path="/events/:id" element={<EventDetailPage />} />
-                <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <UserDashboardPage />
-                      </ProtectedRoute>
-                    }
-                />
-                <Route
-                    path="/admin"
-                    element={
-                      <ProtectedRoute adminOnly={true}>
-                        <AdminDashboardPage />
-                      </ProtectedRoute>
-                    }
-                />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </Router>
-      </AuthProvider>
-  );
+    return (
+        <AuthProvider>
+            <Router>
+                <div className="app-container">
+                    <Header />
+                    <main className="main-content">
+                        <Routes>
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/register" element={<RegisterPage />} />
+                            <Route path="/events" element={<EventsPage />} />
+                            <Route path="/events/:id" element={<EventDetailPage />} />
+                            <Route path="/resale" element={<ResaleMarketplacePage />} />
+                            <Route
+                                path="/dashboard"
+                                element={
+                                    <ProtectedRoute>
+                                        <UserDashboardPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/admin"
+                                element={
+                                    <ProtectedRoute adminOnly={true}>
+                                        <AdminDashboardPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                        </Routes>
+                    </main>
+                    <Footer />
+                </div>
+            </Router>
+        </AuthProvider>
+    );
 }
 
 export default App;

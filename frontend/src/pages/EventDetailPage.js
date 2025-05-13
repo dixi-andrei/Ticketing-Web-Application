@@ -53,7 +53,7 @@ const EventDetailPage = () => {
                     eventDate: "2025-08-15T19:00:00",
                     imageUrl: "https://placehold.co/800x400?text=Event+Image",
                     totalTickets: 1000,
-                    availableTickets: 0, // Set to 0 to match your "sold out" message
+                    availableTickets: 500,
                     eventType: "CONCERT",
                     status: "SCHEDULED",
                     venue: {
@@ -126,53 +126,56 @@ const EventDetailPage = () => {
         setSelectedTier(tier);
         setQuantity(1);
         setPurchaseError('');
+        setPurchaseStep('select');
         setShowPurchaseModal(true);
     };
 
-    const handlePurchaseConfirm = async () => {
-        try {
-            setPurchaseLoading(true);
-            setPurchaseError('');
+    const handlePaymentComplete = (paymentInfo) => {
+        // In a real app, you would call your API to create the ticket and transaction
+        const transactionDetails = {
+            transactionId: 'TRX-' + Math.random().toString(36).substr(2, 9),
+            eventName: event.name,
+            quantity: quantity,
+            totalAmount: selectedTier?.price * quantity * 1.05,
+            lastFour: paymentInfo.lastFour,
+            paymentMethod: 'Credit Card',
+            purchaseDate: new Date().toISOString()
+        };
 
-            // In a real implementation, you'd call an API endpoint to purchase tickets
-            // For this example, we'll simulate a successful purchase after a delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+        setPurchaseDetails(transactionDetails);
+        setPurchaseStep('confirmation');
 
-            // Mock successful purchase
-            setPurchaseSuccess(true);
-            setPurchaseLoading(false);
+        // Update the event's available tickets (this would be handled by the backend in a real app)
+        if (event && selectedTier) {
+            const updatedTiers = pricingTiers.map(tier => {
+                if (tier.id === selectedTier.id) {
+                    return {
+                        ...tier,
+                        available: tier.available - quantity
+                    };
+                }
+                return tier;
+            });
 
-            // Reset the event's available tickets (this would be handled by the backend in a real app)
-            if (event && selectedTier) {
-                const updatedTiers = pricingTiers.map(tier => {
-                    if (tier.id === selectedTier.id) {
-                        return {
-                            ...tier,
-                            available: tier.available - quantity
-                        };
-                    }
-                    return tier;
-                });
-
-                setPricingTiers(updatedTiers);
-                setEvent({
-                    ...event,
-                    availableTickets: event.availableTickets - quantity
-                });
-            }
-
-            // Close modal after 2 seconds
-            setTimeout(() => {
-                setShowPurchaseModal(false);
-                // Navigate to dashboard after purchase
-                navigate('/dashboard');
-            }, 2000);
-
-        } catch (err) {
-            console.error('Error purchasing ticket:', err);
-            setPurchaseError('Failed to complete purchase. Please try again.');
-            setPurchaseLoading(false);
+            setPricingTiers(updatedTiers);
+            setEvent({
+                ...event,
+                availableTickets: event.availableTickets - quantity
+            });
         }
+    };
+
+    const handlePurchaseConfirm = () => {
+        // Move to payment step
+        setPurchaseStep('payment');
+    };
+
+    const resetPurchaseModal = () => {
+        setPurchaseStep('select');
+        setPurchaseDetails(null);
+        setQuantity(1);
+        setPurchaseError('');
+        setShowPurchaseModal(false);
     };
 
     if (loading) {
@@ -260,7 +263,8 @@ const EventDetailPage = () => {
                             <h4 className="my-1">Tickets</h4>
                         </Card.Header>
                         <Card.Body>
-                            {event.availableTickets > 0 ? (
+                            {/* Check if there are any available tickets in pricing tiers instead of just event.availableTickets */}
+                            {pricingTiers.some(tier => tier.available > 0) ? (
                                 <>
                                     <p>{event.availableTickets} tickets available out of {event.totalTickets}</p>
 
@@ -307,17 +311,20 @@ const EventDetailPage = () => {
             </Row>
 
             {/* Purchase Modal */}
-            <Modal show={showPurchaseModal} onHide={() => setShowPurchaseModal(false)}>
+            <Modal
+                show={showPurchaseModal}
+                onHide={resetPurchaseModal}
+                size={purchaseStep === 'payment' ? 'lg' : 'md'}
+            >
                 <Modal.Header closeButton>
-                    <Modal.Title>Purchase Tickets</Modal.Title>
+                    <Modal.Title>
+                        {purchaseStep === 'select' && 'Purchase Tickets'}
+                        {purchaseStep === 'payment' && 'Complete Your Purchase'}
+                        {purchaseStep === 'confirmation' && 'Purchase Confirmation'}
+                    </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    {purchaseSuccess ? (
-                        <Alert variant="success">
-                            <Alert.Heading>Purchase Successful!</Alert.Heading>
-                            <p>Your tickets have been purchased successfully. You can view your tickets in your dashboard.</p>
-                        </Alert>
-                    ) : (
+                    {purchaseStep === 'select' && (
                         <>
                             {purchaseError && <Alert variant="danger">{purchaseError}</Alert>}
 
@@ -359,10 +366,26 @@ const EventDetailPage = () => {
                             </div>
                         </>
                     )}
+
+                    {purchaseStep === 'payment' && selectedTier && (
+                        <PaymentForm
+                            amount={selectedTier.price * quantity * 1.05}
+                            onPaymentComplete={handlePaymentComplete}
+                            onCancel={() => setPurchaseStep('select')}
+                        />
+                    )}
+
+                    {purchaseStep === 'confirmation' && purchaseDetails && (
+                        <PurchaseConfirmation
+                            purchaseDetails={purchaseDetails}
+                            onClose={resetPurchaseModal}
+                        />
+                    )}
                 </Modal.Body>
-                {!purchaseSuccess && (
+
+                {purchaseStep === 'select' && (
                     <Modal.Footer>
-                        <Button variant="secondary" onClick={() => setShowPurchaseModal(false)}>
+                        <Button variant="secondary" onClick={resetPurchaseModal}>
                             Cancel
                         </Button>
                         <Button
@@ -370,7 +393,7 @@ const EventDetailPage = () => {
                             onClick={handlePurchaseConfirm}
                             disabled={purchaseLoading}
                         >
-                            {purchaseLoading ? 'Processing...' : 'Confirm Purchase'}
+                            {purchaseLoading ? 'Processing...' : 'Proceed to Payment'}
                         </Button>
                     </Modal.Footer>
                 )}
