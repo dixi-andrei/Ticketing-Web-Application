@@ -65,3 +65,32 @@ footer {
   background-color: #e9ecef;
   border-color: #dee2e6;
 }
+/* Add to src/App.css */
+.payment-card {
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.ticket-confirmation {
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+/* Add this to make the check-circle icon larger */
+.bi-check-circle-fill {
+  font-size: 48px;
+  color: #28a745;
+}
+/* Add to src/App.css */
+.form-control.is-invalid {
+  background-image: none;
+}
+
+.invalid-feedback {
+  display: block;
+  font-size: 80%;
+}

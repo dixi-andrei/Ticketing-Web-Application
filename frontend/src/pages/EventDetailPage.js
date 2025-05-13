@@ -5,6 +5,8 @@ import { Container, Row, Col, Card, Button, Badge, Alert, Modal, Form } from 're
 import { getEventById } from '../api/eventApi';
 import { getPricingTiersByEvent } from '../api/pricingTierApi';
 import { purchaseTicket } from '../api/ticketApi';
+import PaymentForm from '../components/tickets/PaymentForm';
+import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
 import AuthContext from '../contexts/AuthContext';
 
 const EventDetailPage = () => {
@@ -16,6 +18,8 @@ const EventDetailPage = () => {
     const [pricingTiers, setPricingTiers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [purchaseStep, setPurchaseStep] = useState('select'); // 'select', 'payment', 'confirmation'
+    const [purchaseDetails, setPurchaseDetails] = useState(null);
 
     // Purchase states
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -44,21 +48,21 @@ const EventDetailPage = () => {
                 // Mock data for demonstration if API fails
                 const mockEvent = {
                     id: parseInt(id),
-                    name: "Sample Event",
-                    description: "This is a sample event description. The event promises to be an unforgettable experience with amazing performances and activities.",
+                    name: "Sample Event Title",
+                    description: "This is a detailed sample event description. Join us for an amazing experience with great performances and activities. This event is designed to provide entertainment and fun for all attendees.",
                     eventDate: "2025-08-15T19:00:00",
                     imageUrl: "https://placehold.co/800x400?text=Event+Image",
                     totalTickets: 1000,
-                    availableTickets: 500,
+                    availableTickets: 0, // Set to 0 to match your "sold out" message
                     eventType: "CONCERT",
                     status: "SCHEDULED",
                     venue: {
                         id: 1,
-                        name: "Sample Venue",
-                        address: "123 Main St",
-                        city: "Sample City",
-                        state: "SS",
-                        country: "Sample Country",
+                        name: "Grand Arena",
+                        address: "123 Event Street",
+                        city: "New York",
+                        state: "NY",
+                        country: "USA",
                         capacity: 1500
                     },
                     creatorName: "Event Organizer"
@@ -100,8 +104,17 @@ const EventDetailPage = () => {
     }, [id]);
 
     const formatDate = (dateString) => {
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return "Date not available";
+            }
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return date.toLocaleDateString(undefined, options);
+        } catch (e) {
+            console.error("Error formatting date:", e);
+            return "Date not available";
+        }
     };
 
     const handlePurchaseClick = (tier) => {
@@ -219,18 +232,22 @@ const EventDetailPage = () => {
                         />
                         <Card.Body>
                             <h4>About This Event</h4>
-                            <p>{event.description}</p>
+                            <p>{event.description || "No description available for this event."}</p>
 
                             <hr />
 
                             <h4>Venue Information</h4>
+                            {event.venue ? (
+                                <p>
+                                    <strong>{event.venue.name || "Venue name not available"}</strong><br />
+                                    {event.venue.address || "Address not available"}<br />
+                                    {event.venue.city || ""}{event.venue.state ? `, ${event.venue.state}` : ""} {event.venue.country || ""}
+                                </p>
+                            ) : (
+                                <p>Venue information not available</p>
+                            )}
                             <p>
-                                <strong>{event.venue?.name}</strong><br />
-                                {event.venue?.address}<br />
-                                {event.venue?.city}, {event.venue?.state} {event.venue?.country}
-                            </p>
-                            <p>
-                                <strong>Venue Capacity:</strong> {event.venue?.capacity} attendees
+                                <strong>Venue Capacity:</strong> {event.venue?.capacity || "Not specified"} attendees
                             </p>
                         </Card.Body>
                     </Card>

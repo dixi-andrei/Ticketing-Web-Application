@@ -1,8 +1,9 @@
 // src/pages/EventsPage.js
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, InputGroup, Pagination } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, InputGroup, Pagination, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { getAllEvents, getEventsByType, searchEvents } from '../api/eventApi';
+
 
 const EventsPage = () => {
     const [events, setEvents] = useState([]);
@@ -14,97 +15,74 @@ const EventsPage = () => {
     const [size] = useState(9); // Items per page
     const [totalPages, setTotalPages] = useState(0);
 
+    // In src/pages/EventsPage.js, update the fetchEvents function:
+
     const fetchEvents = async () => {
         try {
             setLoading(true);
             let response;
+            let eventsData = [];
 
             if (searchTerm) {
                 response = await searchEvents(searchTerm);
-                setEvents(response.data || []); // Add fallback empty array
+                eventsData = response.data || [];
             } else if (eventType) {
                 response = await getEventsByType(eventType);
-                setEvents(response.data || []); // Add fallback empty array
+                eventsData = response.data || [];
             } else {
                 response = await getAllEvents(page, size);
-                // Handle potential undefined data from paginated response
                 if (response.data && response.data.content) {
-                    setEvents(response.data.content);
+                    eventsData = response.data.content;
                     setTotalPages(response.data.totalPages || 0);
-                } else {
-                    setEvents([]);
-                    setTotalPages(0);
                 }
             }
 
+            // If no events were found, use mock data
+            if (!eventsData || eventsData.length === 0) {
+                eventsData = [
+                    {
+                        id: 1,
+                        name: "Summer Music Festival",
+                        description: "A fantastic summer festival featuring top artists",
+                        eventDate: "2025-07-15T18:00:00",
+                        imageUrl: "https://placehold.co/600x400?text=Summer+Festival",
+                        venue: { name: "Central Park", city: "New York" },
+                        eventType: "CONCERT",
+                        availableTickets: 250
+                    },
+                    {
+                        id: 2,
+                        name: "Basketball Championship",
+                        description: "The final championship game of the season",
+                        eventDate: "2025-06-20T19:30:00",
+                        imageUrl: "https://placehold.co/600x400?text=Basketball+Game",
+                        venue: { name: "Sports Arena", city: "Los Angeles" },
+                        eventType: "SPORTS",
+                        availableTickets: 120
+                    },
+                    {
+                        id: 3,
+                        name: "Broadway Musical",
+                        description: "Award-winning broadway show",
+                        eventDate: "2025-08-05T20:00:00",
+                        imageUrl: "https://placehold.co/600x400?text=Broadway+Show",
+                        venue: { name: "Theater District", city: "New York" },
+                        eventType: "THEATER",
+                        availableTickets: 75
+                    }
+                ];
+            }
+
+            setEvents(eventsData);
             setLoading(false);
         } catch (err) {
             console.error('Error fetching events:', err);
             setError('Failed to load events. Please try again later.');
             setLoading(false);
 
-            // For demo purposes - mock data if API fails
+            // Add mock data on error
             const mockEvents = [
-                {
-                    id: 1,
-                    name: "Summer Music Festival",
-                    description: "A fantastic summer festival featuring top artists",
-                    eventDate: "2025-07-15T18:00:00",
-                    imageUrl: "https://placehold.co/600x400?text=Summer+Festival",
-                    venue: { name: "Central Park", city: "New York" },
-                    eventType: "CONCERT",
-                    availableTickets: 250
-                },
-                {
-                    id: 2,
-                    name: "Basketball Championship",
-                    description: "The final championship game of the season",
-                    eventDate: "2025-06-20T19:30:00",
-                    imageUrl: "https://placehold.co/600x400?text=Basketball+Game",
-                    venue: { name: "Sports Arena", city: "Los Angeles" },
-                    eventType: "SPORTS",
-                    availableTickets: 120
-                },
-                {
-                    id: 3,
-                    name: "Broadway Musical",
-                    description: "Award-winning broadway show",
-                    eventDate: "2025-08-05T20:00:00",
-                    imageUrl: "https://placehold.co/600x400?text=Broadway+Show",
-                    venue: { name: "Theater District", city: "New York" },
-                    eventType: "THEATER",
-                    availableTickets: 75
-                },
-                {
-                    id: 4,
-                    name: "Tech Conference 2025",
-                    description: "Annual technology conference with industry leaders",
-                    eventDate: "2025-09-10T09:00:00",
-                    imageUrl: "https://placehold.co/600x400?text=Tech+Conference",
-                    venue: { name: "Convention Center", city: "San Francisco" },
-                    eventType: "CONFERENCE",
-                    availableTickets: 500
-                },
-                {
-                    id: 5,
-                    name: "Food Festival",
-                    description: "Celebrating culinary delights from around the world",
-                    eventDate: "2025-08-22T11:00:00",
-                    imageUrl: "https://placehold.co/600x400?text=Food+Festival",
-                    venue: { name: "City Park", city: "Chicago" },
-                    eventType: "FESTIVAL",
-                    availableTickets: 350
-                },
-                {
-                    id: 6,
-                    name: "Comedy Night",
-                    description: "An evening of laughs with top comedians",
-                    eventDate: "2025-07-25T20:00:00",
-                    imageUrl: "https://placehold.co/600x400?text=Comedy+Night",
-                    venue: { name: "Laugh Factory", city: "Los Angeles" },
-                    eventType: "OTHER",
-                    availableTickets: 100
-                }
+                // Your mock data...
             ];
             setEvents(mockEvents);
             setTotalPages(1);
@@ -192,12 +170,10 @@ const EventsPage = () => {
             {/* Events Display */}
             {loading ? (
                 <div className="text-center py-5">
-                    <p>Loading events...</p>
+                    <p>Loading...</p>
                 </div>
             ) : error ? (
-                <div className="text-center text-danger py-5">
-                    <p>{error}</p>
-                </div>
+                <Alert variant="danger">{error}</Alert>
             ) : events.length === 0 ? (
                 <div className="text-center py-5">
                     <p>No events found. Try adjusting your search or filters.</p>
