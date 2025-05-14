@@ -31,6 +31,10 @@ export const getAllVenues = () => {
     return axiosInstance.get('/venues');
 };
 
+export const getTicketQRCode = (id) => {
+    return axiosInstance.get(`/tickets/${id}/qrcode`);
+};
+
 export const getVenueById = (id) => {
     return axiosInstance.get(`/venues/${id}`);
 };

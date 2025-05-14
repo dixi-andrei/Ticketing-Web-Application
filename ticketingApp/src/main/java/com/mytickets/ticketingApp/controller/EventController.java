@@ -18,7 +18,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -30,9 +34,36 @@ public class EventController {
 
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Event>> getAllEvents() {
+    public ResponseEntity<List<Map<String, Object>>> getAllEvents() {
         List<Event> events = eventService.getAllEvents();
-        return new ResponseEntity<>(events, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
     }
 
     @GetMapping("/page")

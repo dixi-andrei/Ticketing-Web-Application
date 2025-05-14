@@ -9,7 +9,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -21,9 +25,27 @@ public class VenueController {
 
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Venue>> getAllVenues() {
+    public ResponseEntity<List<Map<String, Object>>> getAllVenues() {
         List<Venue> venues = venueService.getAllVenues();
-        return new ResponseEntity<>(venues, HttpStatus.OK);
+
+        // Convert to simplified maps to avoid recursion
+        List<Map<String, Object>> simplifiedVenues = venues.stream()
+                .map(venue -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", venue.getId());
+                    map.put("name", venue.getName());
+                    map.put("address", venue.getAddress());
+                    map.put("city", venue.getCity());
+                    map.put("state", venue.getState());
+                    map.put("country", venue.getCountry());
+                    map.put("capacity", venue.getCapacity());
+                    map.put("venueMap", venue.getVenueMap());
+                    // Don't include events
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedVenues, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")

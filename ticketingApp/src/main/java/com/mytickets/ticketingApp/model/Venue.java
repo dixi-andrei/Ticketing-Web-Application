@@ -1,5 +1,6 @@
 package com.mytickets.ticketingApp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -38,6 +39,7 @@ public class Venue {
     private String venueMap; // URL to venue map image
 
     @OneToMany(mappedBy = "venue")
+    @JsonIgnoreProperties("venue")
     private List<Event> events = new ArrayList<>();
 
     public Long getId() {

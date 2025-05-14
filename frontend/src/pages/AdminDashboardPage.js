@@ -316,13 +316,13 @@ const AdminDashboardPage = () => {
 
             switch (activeTab) {
                 case 'events':
-                    response = await axiosInstance.post('/events', formData);
+                    response = await adminAPI.createEvent(formData);
                     break;
                 case 'venues':
-                    response = await axiosInstance.post('/venues', formData);
+                    response = await adminAPI.createVenue(formData);
                     break;
                 case 'users':
-                    response = await axiosInstance.post('/users', formData);
+                    response = await adminAPI.createUser(formData);
                     break;
                 default:
                     break;
@@ -1067,26 +1067,28 @@ const AdminDashboardPage = () => {
                 setIsSubmitting(true);
 
                 try {
-                    // Combine date and time for eventDate
-                    const combinedDateTime = `${formData.eventDate}T${formData.eventTime}:00`;
-                    const submitData = {
-                        ...formData,
-                        eventDate: combinedDateTime,
-                        // Remove the separate time field before submitting
-                        eventTime: undefined
-                    };
+                    // Call the API to create batch tickets
+                    await adminAPI.generateBatchTickets(
+                        formData.eventId,
+                        formData.pricingTierId,
+                        formData.quantity,
+                        {
+                            section: formData.section || null,
+                            startRow: formData.startRow || null,
+                            startSeat: formData.startSeat || null
+                        }
+                    );
 
-                    if (modalMode === 'create') {
-                        await handleCreateItem(submitData);
-                    } else {
-                        await handleUpdateItem(selectedItem.id, submitData);
-                    }
+                    // Close the modal and refresh the tickets data
+                    setBatchTicketModal(false);
+                    fetchDashboardData();
 
-                    handleCloseModal();
+                    // Show success message
+                    alert(`Successfully generated ${formData.quantity} tickets`);
                 } catch (err) {
-                    console.error('Form submission error:', err);
+                    console.error('Error generating tickets:', err);
                     setFormErrors({
-                        submit: err.response?.data?.message || 'Failed to save event. Please try again.'
+                        submit: err.response?.data?.message || 'Failed to generate tickets. Please try again.'
                     });
                 } finally {
                     setIsSubmitting(false);

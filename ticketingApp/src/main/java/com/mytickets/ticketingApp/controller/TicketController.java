@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -39,9 +40,57 @@ public class TicketController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Ticket>> getAllTickets() {
+    public ResponseEntity<List<Map<String, Object>>> getAllTickets() {
         List<Ticket> tickets = ticketService.getAllTickets();
-        return new ResponseEntity<>(tickets, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedTickets = tickets.stream()
+                .map(ticket -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", ticket.getId());
+                    map.put("ticketNumber", ticket.getTicketNumber());
+                    map.put("originalPrice", ticket.getOriginalPrice());
+                    map.put("currentPrice", ticket.getCurrentPrice());
+                    map.put("section", ticket.getSection());
+                    map.put("row", ticket.getRow());
+                    map.put("seat", ticket.getSeat());
+                    map.put("status", ticket.getStatus());
+                    map.put("purchaseDate", ticket.getPurchaseDate());
+                    map.put("used", ticket.getUsed());
+                    map.put("qrCodeUrl", ticket.getQrCodeUrl());
+
+                    // Add simplified event info
+                    if (ticket.getEvent() != null) {
+                        Map<String, Object> eventMap = new HashMap<>();
+                        eventMap.put("id", ticket.getEvent().getId());
+                        eventMap.put("name", ticket.getEvent().getName());
+                        eventMap.put("eventDate", ticket.getEvent().getEventDate());
+
+                        // Add simplified venue info
+                        if (ticket.getEvent().getVenue() != null) {
+                            Map<String, Object> venueMap = new HashMap<>();
+                            venueMap.put("id", ticket.getEvent().getVenue().getId());
+                            venueMap.put("name", ticket.getEvent().getVenue().getName());
+                            venueMap.put("city", ticket.getEvent().getVenue().getCity());
+                            eventMap.put("venue", venueMap);
+                        }
+
+                        map.put("event", eventMap);
+                    }
+
+                    // Add simplified owner info
+                    if (ticket.getOwner() != null) {
+                        Map<String, Object> ownerMap = new HashMap<>();
+                        ownerMap.put("id", ticket.getOwner().getId());
+                        ownerMap.put("firstName", ticket.getOwner().getFirstName());
+                        ownerMap.put("lastName", ticket.getOwner().getLastName());
+                        map.put("owner", ownerMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")

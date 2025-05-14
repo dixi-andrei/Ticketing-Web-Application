@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -29,9 +30,60 @@ public class TransactionController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Transaction>> getAllTransactions() {
+    public ResponseEntity<List<Map<String, Object>>> getAllTransactions() {
         List<Transaction> transactions = transactionService.getAllTransactions();
-        return new ResponseEntity<>(transactions, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedTransactions = transactions.stream()
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("paymentIntentId", transaction.getPaymentIntentId());
+
+                    // Add simplified buyer info
+                    if (transaction.getBuyer() != null) {
+                        Map<String, Object> buyerMap = new HashMap<>();
+                        buyerMap.put("id", transaction.getBuyer().getId());
+                        buyerMap.put("firstName", transaction.getBuyer().getFirstName());
+                        buyerMap.put("lastName", transaction.getBuyer().getLastName());
+                        map.put("buyer", buyerMap);
+                    }
+
+                    // Add simplified seller info
+                    if (transaction.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", transaction.getSeller().getId());
+                        sellerMap.put("firstName", transaction.getSeller().getFirstName());
+                        sellerMap.put("lastName", transaction.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    // Add simplified ticket info
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
+
+                        // Add simplified event info
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTransactions, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
