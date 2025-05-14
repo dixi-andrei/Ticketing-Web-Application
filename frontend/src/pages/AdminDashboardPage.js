@@ -4,6 +4,15 @@ import { Container, Row, Col, Card, Tab, Nav, Table, Badge, Button, Alert, Spinn
 import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosConfig';
 import AuthContext from '../contexts/AuthContext';
+import * as adminAPI from '../api/adminApi';
+import * as eventAPI from '../api/eventApi';
+import * as venueAPI from '../api/venueApi';
+import * as userAPI from '../api/userApi';
+import * as ticketAPI from '../api/ticketApi';
+import * as transactionAPI from '../api/transactionApi';
+import * as pricingTierAPI from '../api/pricingTierApi';
+
+
 
 const AdminDashboardPage = () => {
     const [activeTab, setActiveTab] = useState('events');
@@ -1048,7 +1057,7 @@ const AdminDashboardPage = () => {
                 .reduce((total, transaction) => total + (transaction.amount || 0), 0)
                 .toFixed(2);
         };
-        
+
         const handleSubmit = async (e) => {
             e.preventDefault();
             const errors = validateForm();

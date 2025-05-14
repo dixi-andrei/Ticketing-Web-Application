@@ -1,37 +1,100 @@
 // src/api/userApi.js
 import axiosInstance from './axiosConfig';
 
-// Get user's purchased tickets
+const API_URL = '/users';
+const TICKETS_API = '/tickets';
+const LISTINGS_API = '/listings';
+const TRANSACTIONS_API = '/transactions';
+
+// User management
+export const getAllUsers = () => {
+    return axiosInstance.get(API_URL);
+};
+
+export const getUserById = (id) => {
+    return axiosInstance.get(`${API_URL}/${id}`);
+};
+
+export const getUserByEmail = (email) => {
+    return axiosInstance.get(`${API_URL}/email/${encodeURIComponent(email)}`);
+};
+
+export const createUser = (userData) => {
+    return axiosInstance.post(API_URL, userData);
+};
+
+export const updateUser = (id, userData) => {
+    return axiosInstance.put(`${API_URL}/${id}`, userData);
+};
+
+export const deleteUser = (id) => {
+    return axiosInstance.delete(`${API_URL}/${id}`);
+};
+
+export const getCurrentUserProfile = () => {
+    return axiosInstance.get(`${API_URL}/profile`);
+};
+
+export const updateCurrentUserProfile = (userData) => {
+    return axiosInstance.put(`${API_URL}/profile`, userData);
+};
+
+// User roles
+export const addRoleToUser = (userId, role) => {
+    return axiosInstance.post(`${API_URL}/${userId}/roles/add/${role}`);
+};
+
+export const removeRoleFromUser = (userId, role) => {
+    return axiosInstance.post(`${API_URL}/${userId}/roles/remove/${role}`);
+};
+
+// User status
+export const enableUser = (id) => {
+    return axiosInstance.post(`${API_URL}/${id}/enable`);
+};
+
+export const disableUser = (id) => {
+    return axiosInstance.post(`${API_URL}/${id}/disable`);
+};
+
+// User data
+export const getUserTickets = (userId) => {
+    return axiosInstance.get(`${API_URL}/${userId}/tickets`);
+};
+
+export const getUserEvents = (userId) => {
+    return axiosInstance.get(`${API_URL}/${userId}/events`);
+};
+
+export const getUserTransactions = (userId) => {
+    return axiosInstance.get(`${API_URL}/${userId}/transactions`);
+};
+
+// Current user data
 export const getMyTickets = () => {
-    return axiosInstance.get('/tickets/my-tickets');
+    return axiosInstance.get(`${TICKETS_API}/my-tickets`);
 };
 
-// Get user's upcoming tickets
 export const getMyUpcomingTickets = () => {
-    return axiosInstance.get('/tickets/my-upcoming-tickets');
+    return axiosInstance.get(`${TICKETS_API}/my-upcoming-tickets`);
 };
 
-// Get user's listings
 export const getMyListings = () => {
-    return axiosInstance.get('/listings/my-listings');
+    return axiosInstance.get(`${LISTINGS_API}/my-listings`);
 };
 
-// Get user's purchases
 export const getMyPurchases = () => {
-    return axiosInstance.get('/transactions/my-purchases');
+    return axiosInstance.get(`${TRANSACTIONS_API}/my-purchases`);
 };
 
-// Get user's sales
 export const getMySales = () => {
-    return axiosInstance.get('/transactions/my-sales');
+    return axiosInstance.get(`${TRANSACTIONS_API}/my-sales`);
 };
 
-// Get total purchases amount
 export const getMyTotalPurchases = () => {
-    return axiosInstance.get('/transactions/my-total-purchases');
+    return axiosInstance.get(`${TRANSACTIONS_API}/my-total-purchases`);
 };
 
-// Get total sales amount
 export const getMyTotalSales = () => {
-    return axiosInstance.get('/transactions/my-total-sales');
+    return axiosInstance.get(`${TRANSACTIONS_API}/my-total-sales`);
 };
