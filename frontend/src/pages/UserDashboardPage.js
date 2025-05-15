@@ -72,6 +72,7 @@ const UserDashboardPage = () => {
         }
     };
 
+    // In your fetchUserData function in UserDashboardPage.js
     const fetchUserData = async () => {
         try {
             setLoading(true);
@@ -96,11 +97,12 @@ const UserDashboardPage = () => {
                 getMyTotalSales().catch(() => ({ data: { total: 0 } }))
             ]);
 
-            setTickets(ticketsRes.data || []);
-            setUpcomingTickets(upcomingTicketsRes.data || []);
-            setListings(listingsRes.data || []);
-            setPurchases(purchasesRes.data || []);
-            setSales(salesRes.data || []);
+            // Ensure all data is properly formatted as arrays
+            setTickets(Array.isArray(ticketsRes.data) ? ticketsRes.data : []);
+            setUpcomingTickets(Array.isArray(upcomingTicketsRes.data) ? upcomingTicketsRes.data : []);
+            setListings(Array.isArray(listingsRes.data) ? listingsRes.data : []);
+            setPurchases(Array.isArray(purchasesRes.data) ? purchasesRes.data : []);
+            setSales(Array.isArray(salesRes.data) ? salesRes.data : []);
             setTotalPurchases(totalPurchasesRes.data?.total || 0);
             setTotalSales(totalSalesRes.data?.total || 0);
 
@@ -354,7 +356,7 @@ const UserDashboardPage = () => {
                                                         </tr>
                                                         </thead>
                                                         <tbody>
-                                                        {upcomingTickets.map((ticket) => (
+                                                        {Array.isArray(upcomingTickets) && upcomingTickets.map((ticket) => (
                                                             <tr key={ticket.id}>
                                                                 <td>
                                                                     <Link to={`/events/${ticket.event.id}`} className="text-decoration-none">

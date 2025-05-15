@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -24,38 +25,248 @@ public class TicketListingController {
     private TicketListingService ticketListingService;
 
     @GetMapping
-    public ResponseEntity<List<TicketListing>> getAllListings() {
+    public ResponseEntity<List<Map<String, Object>>> getAllListings() {
         List<TicketListing> listings = ticketListingService.getAllListings();
-        return new ResponseEntity<>(listings, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedListings = listings.stream()
+                .map(listing -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", listing.getId());
+                    map.put("askingPrice", listing.getAskingPrice());
+                    map.put("description", listing.getDescription());
+                    map.put("listingDate", listing.getListingDate());
+                    map.put("status", listing.getStatus());
+
+                    // Add simplified ticket info
+                    if (listing.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", listing.getTicket().getId());
+                        ticketMap.put("ticketNumber", listing.getTicket().getTicketNumber());
+                        ticketMap.put("originalPrice", listing.getTicket().getOriginalPrice());
+                        ticketMap.put("section", listing.getTicket().getSection());
+                        ticketMap.put("row", listing.getTicket().getRow());
+                        ticketMap.put("seat", listing.getTicket().getSeat());
+
+                        // Add simplified event info
+                        if (listing.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", listing.getTicket().getEvent().getId());
+                            eventMap.put("name", listing.getTicket().getEvent().getName());
+                            eventMap.put("eventDate", listing.getTicket().getEvent().getEventDate());
+
+                            // Add simplified venue info
+                            if (listing.getTicket().getEvent().getVenue() != null) {
+                                Map<String, Object> venueMap = new HashMap<>();
+                                venueMap.put("id", listing.getTicket().getEvent().getVenue().getId());
+                                venueMap.put("name", listing.getTicket().getEvent().getVenue().getName());
+                                venueMap.put("city", listing.getTicket().getEvent().getVenue().getCity());
+                                eventMap.put("venue", venueMap);
+                            }
+
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    // Add simplified seller info
+                    if (listing.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", listing.getSeller().getId());
+                        sellerMap.put("firstName", listing.getSeller().getFirstName());
+                        sellerMap.put("lastName", listing.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedListings, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TicketListing> getListingById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getListingById(@PathVariable Long id) {
         return ticketListingService.getListingById(id)
-                .map(listing -> new ResponseEntity<>(listing, HttpStatus.OK))
+                .map(listing -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", listing.getId());
+                    map.put("askingPrice", listing.getAskingPrice());
+                    map.put("description", listing.getDescription());
+                    map.put("listingDate", listing.getListingDate());
+                    map.put("status", listing.getStatus());
+
+                    // Add simplified ticket info
+                    if (listing.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", listing.getTicket().getId());
+                        ticketMap.put("ticketNumber", listing.getTicket().getTicketNumber());
+                        ticketMap.put("originalPrice", listing.getTicket().getOriginalPrice());
+                        ticketMap.put("section", listing.getTicket().getSection());
+                        ticketMap.put("row", listing.getTicket().getRow());
+                        ticketMap.put("seat", listing.getTicket().getSeat());
+
+                        // Add simplified event info
+                        if (listing.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", listing.getTicket().getEvent().getId());
+                            eventMap.put("name", listing.getTicket().getEvent().getName());
+                            eventMap.put("eventDate", listing.getTicket().getEvent().getEventDate());
+
+                            // Add simplified venue info
+                            if (listing.getTicket().getEvent().getVenue() != null) {
+                                Map<String, Object> venueMap = new HashMap<>();
+                                venueMap.put("id", listing.getTicket().getEvent().getVenue().getId());
+                                venueMap.put("name", listing.getTicket().getEvent().getVenue().getName());
+                                venueMap.put("city", listing.getTicket().getEvent().getVenue().getCity());
+                                eventMap.put("venue", venueMap);
+                            }
+
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    // Add simplified seller info
+                    if (listing.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", listing.getSeller().getId());
+                        sellerMap.put("firstName", listing.getSeller().getFirstName());
+                        sellerMap.put("lastName", listing.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    return new ResponseEntity<>(map, HttpStatus.OK);
+                })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/my-listings")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<TicketListing>> getMyListings() {
+    public ResponseEntity<List<Map<String, Object>>> getMyListings() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
 
         List<TicketListing> listings = ticketListingService.getListingsBySeller(userDetails.getId());
-        return new ResponseEntity<>(listings, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedListings = listings.stream()
+                .map(listing -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", listing.getId());
+                    map.put("askingPrice", listing.getAskingPrice());
+                    map.put("description", listing.getDescription());
+                    map.put("listingDate", listing.getListingDate());
+                    map.put("status", listing.getStatus());
+
+                    // Add simplified ticket info
+                    if (listing.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", listing.getTicket().getId());
+                        ticketMap.put("ticketNumber", listing.getTicket().getTicketNumber());
+                        ticketMap.put("originalPrice", listing.getTicket().getOriginalPrice());
+
+                        // Add simplified event info
+                        if (listing.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", listing.getTicket().getEvent().getId());
+                            eventMap.put("name", listing.getTicket().getEvent().getName());
+                            eventMap.put("eventDate", listing.getTicket().getEvent().getEventDate());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedListings, HttpStatus.OK);
     }
 
     @GetMapping("/event/{eventId}")
-    public ResponseEntity<List<TicketListing>> getListingsByEvent(@PathVariable Long eventId) {
+    public ResponseEntity<List<Map<String, Object>>> getListingsByEvent(@PathVariable Long eventId) {
         List<TicketListing> listings = ticketListingService.getActiveListingsByEvent(eventId);
-        return new ResponseEntity<>(listings, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedListings = listings.stream()
+                .map(listing -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", listing.getId());
+                    map.put("askingPrice", listing.getAskingPrice());
+                    map.put("description", listing.getDescription());
+                    map.put("listingDate", listing.getListingDate());
+                    map.put("status", listing.getStatus());
+
+                    // Add simplified ticket info
+                    if (listing.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", listing.getTicket().getId());
+                        ticketMap.put("ticketNumber", listing.getTicket().getTicketNumber());
+                        ticketMap.put("originalPrice", listing.getTicket().getOriginalPrice());
+                        ticketMap.put("section", listing.getTicket().getSection());
+                        ticketMap.put("row", listing.getTicket().getRow());
+                        ticketMap.put("seat", listing.getTicket().getSeat());
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    // Add simplified seller info
+                    if (listing.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", listing.getSeller().getId());
+                        sellerMap.put("firstName", listing.getSeller().getFirstName());
+                        sellerMap.put("lastName", listing.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedListings, HttpStatus.OK);
     }
 
     @GetMapping("/event/{eventId}/cheapest")
-    public ResponseEntity<List<TicketListing>> getCheapestListingsByEvent(@PathVariable Long eventId) {
+    public ResponseEntity<List<Map<String, Object>>> getCheapestListingsByEvent(@PathVariable Long eventId) {
         List<TicketListing> listings = ticketListingService.getActiveListingsByEventOrderByPrice(eventId);
-        return new ResponseEntity<>(listings, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedListings = listings.stream()
+                .map(listing -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", listing.getId());
+                    map.put("askingPrice", listing.getAskingPrice());
+                    map.put("description", listing.getDescription());
+                    map.put("listingDate", listing.getListingDate());
+                    map.put("status", listing.getStatus());
+
+                    // Add simplified ticket info
+                    if (listing.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", listing.getTicket().getId());
+                        ticketMap.put("ticketNumber", listing.getTicket().getTicketNumber());
+                        ticketMap.put("originalPrice", listing.getTicket().getOriginalPrice());
+                        ticketMap.put("section", listing.getTicket().getSection());
+                        ticketMap.put("row", listing.getTicket().getRow());
+                        ticketMap.put("seat", listing.getTicket().getSeat());
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    // Add simplified seller info
+                    if (listing.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", listing.getSeller().getId());
+                        sellerMap.put("firstName", listing.getSeller().getFirstName());
+                        sellerMap.put("lastName", listing.getSeller().getLastName().charAt(0) + "."); // Only first initial of last name
+                        map.put("seller", sellerMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedListings, HttpStatus.OK);
     }
 
     @GetMapping("/event/{eventId}/count")
@@ -67,6 +278,7 @@ public class TicketListingController {
 
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
 
     @PostMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")

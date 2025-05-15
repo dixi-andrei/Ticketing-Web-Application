@@ -1,4 +1,3 @@
-// src/main/java/com/mytickets/ticketingApp/controller/TransactionController.java
 package com.mytickets.ticketingApp.controller;
 
 import com.mytickets.ticketingApp.model.Transaction;
@@ -39,9 +38,9 @@ public class TransactionController {
                     map.put("id", transaction.getId());
                     map.put("transactionNumber", transaction.getTransactionNumber());
                     map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
                     map.put("type", transaction.getType());
                     map.put("status", transaction.getStatus());
-                    map.put("transactionDate", transaction.getTransactionDate());
                     map.put("paymentIntentId", transaction.getPaymentIntentId());
 
                     // Add simplified buyer info
@@ -88,65 +87,201 @@ public class TransactionController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<Transaction> getTransactionById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getTransactionById(@PathVariable Long id) {
         return transactionService.getTransactionById(id)
-                .map(transaction -> new ResponseEntity<>(transaction, HttpStatus.OK))
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
+                    map.put("paymentIntentId", transaction.getPaymentIntentId());
+
+                    // Add simplified buyer info
+                    if (transaction.getBuyer() != null) {
+                        Map<String, Object> buyerMap = new HashMap<>();
+                        buyerMap.put("id", transaction.getBuyer().getId());
+                        buyerMap.put("firstName", transaction.getBuyer().getFirstName());
+                        buyerMap.put("lastName", transaction.getBuyer().getLastName());
+                        map.put("buyer", buyerMap);
+                    }
+
+                    // Add simplified seller info
+                    if (transaction.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", transaction.getSeller().getId());
+                        sellerMap.put("firstName", transaction.getSeller().getFirstName());
+                        sellerMap.put("lastName", transaction.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    // Add simplified ticket info
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
+
+                        // Add simplified event info
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return new ResponseEntity<>(map, HttpStatus.OK);
+                })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/number/{transactionNumber}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<Transaction> getTransactionByNumber(@PathVariable String transactionNumber) {
+    public ResponseEntity<Map<String, Object>> getTransactionByNumber(@PathVariable String transactionNumber) {
         return transactionService.getTransactionByNumber(transactionNumber)
-                .map(transaction -> new ResponseEntity<>(transaction, HttpStatus.OK))
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
+                    map.put("paymentIntentId", transaction.getPaymentIntentId());
+
+                    // Add simplified buyer and seller info
+                    // Similar to getTransactionById
+                    if (transaction.getBuyer() != null) {
+                        Map<String, Object> buyerMap = new HashMap<>();
+                        buyerMap.put("id", transaction.getBuyer().getId());
+                        buyerMap.put("firstName", transaction.getBuyer().getFirstName());
+                        buyerMap.put("lastName", transaction.getBuyer().getLastName());
+                        map.put("buyer", buyerMap);
+                    }
+
+                    if (transaction.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", transaction.getSeller().getId());
+                        sellerMap.put("firstName", transaction.getSeller().getFirstName());
+                        sellerMap.put("lastName", transaction.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
+
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return new ResponseEntity<>(map, HttpStatus.OK);
+                })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/my-purchases")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Transaction>> getMyPurchases() {
+    public ResponseEntity<List<Map<String, Object>>> getMyPurchases() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
 
         List<Transaction> transactions = transactionService.getTransactionsByBuyer(userDetails.getId());
-        return new ResponseEntity<>(transactions, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedTransactions = transactions.stream()
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
+
+                    // Add simplified ticket info
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
+
+                        // Add simplified event info
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTransactions, HttpStatus.OK);
     }
 
     @GetMapping("/my-sales")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Transaction>> getMySales() {
+    public ResponseEntity<List<Map<String, Object>>> getMySales() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
 
         List<Transaction> transactions = transactionService.getTransactionsBySeller(userDetails.getId());
-        return new ResponseEntity<>(transactions, HttpStatus.OK);
-    }
 
-    @GetMapping("/date-range")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Transaction>> getTransactionsByDateRange(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        List<Map<String, Object>> simplifiedTransactions = transactions.stream()
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
 
-        List<Transaction> transactions = transactionService.getTransactionsByDateRange(startDate, endDate);
-        return new ResponseEntity<>(transactions, HttpStatus.OK);
-    }
+                    // Add simplified buyer info
+                    if (transaction.getBuyer() != null) {
+                        Map<String, Object> buyerMap = new HashMap<>();
+                        buyerMap.put("id", transaction.getBuyer().getId());
+                        buyerMap.put("firstName", transaction.getBuyer().getFirstName());
+                        buyerMap.put("lastName", transaction.getBuyer().getLastName());
+                        map.put("buyer", buyerMap);
+                    }
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Transaction> createTransaction(@Valid @RequestBody Transaction transaction) {
-        Transaction newTransaction = transactionService.createTransaction(transaction);
-        return new ResponseEntity<>(newTransaction, HttpStatus.CREATED);
-    }
+                    // Add simplified ticket info
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
 
-    @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Transaction> updateTransactionStatus(
-            @PathVariable Long id,
-            @RequestParam TransactionStatus status) {
+                        // Add simplified event info
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
 
-        Transaction updatedTransaction = transactionService.updateTransactionStatus(id, status);
-        return new ResponseEntity<>(updatedTransaction, HttpStatus.OK);
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTransactions, HttpStatus.OK);
     }
 
     @GetMapping("/my-total-sales")
@@ -175,6 +310,65 @@ public class TransactionController {
         response.put("total", total);
 
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @GetMapping("/date-range")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getTransactionsByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+
+        List<Transaction> transactions = transactionService.getTransactionsByDateRange(startDate, endDate);
+
+        List<Map<String, Object>> simplifiedTransactions = transactions.stream()
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("transactionNumber", transaction.getTransactionNumber());
+                    map.put("amount", transaction.getAmount());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("type", transaction.getType());
+                    map.put("status", transaction.getStatus());
+
+                    // Add simplified buyer and seller info
+                    if (transaction.getBuyer() != null) {
+                        Map<String, Object> buyerMap = new HashMap<>();
+                        buyerMap.put("id", transaction.getBuyer().getId());
+                        buyerMap.put("firstName", transaction.getBuyer().getFirstName());
+                        buyerMap.put("lastName", transaction.getBuyer().getLastName());
+                        map.put("buyer", buyerMap);
+                    }
+
+                    if (transaction.getSeller() != null) {
+                        Map<String, Object> sellerMap = new HashMap<>();
+                        sellerMap.put("id", transaction.getSeller().getId());
+                        sellerMap.put("firstName", transaction.getSeller().getFirstName());
+                        sellerMap.put("lastName", transaction.getSeller().getLastName());
+                        map.put("seller", sellerMap);
+                    }
+
+                    // Add simplified ticket info
+                    if (transaction.getTicket() != null) {
+                        Map<String, Object> ticketMap = new HashMap<>();
+                        ticketMap.put("id", transaction.getTicket().getId());
+                        ticketMap.put("ticketNumber", transaction.getTicket().getTicketNumber());
+
+                        // Add simplified event info
+                        if (transaction.getTicket().getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", transaction.getTicket().getEvent().getId());
+                            eventMap.put("name", transaction.getTicket().getEvent().getName());
+                            ticketMap.put("event", eventMap);
+                        }
+
+                        map.put("ticket", ticketMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTransactions, HttpStatus.OK);
     }
 
     @PostMapping("/{id}/process-payment")
