@@ -12,7 +12,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -22,36 +24,105 @@ public class PricingTierController {
 
     @Autowired
     private PricingTierService pricingTierService;
-
     @Autowired
     private PricingTierMapper pricingTierMapper;
 
     @GetMapping
-    public ResponseEntity<List<PricingTierResponse>> getAllPricingTiers() {
+    public ResponseEntity<List<Map<String, Object>>> getAllPricingTiers() {
         List<PricingTier> pricingTiers = pricingTierService.getAllPricingTiers();
-        List<PricingTierResponse> pricingTierResponses = pricingTiers.stream()
-                .map(pricingTierMapper::toResponse)
+
+        List<Map<String, Object>> simplifiedTiers = pricingTiers.stream()
+                .map(tier -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", tier.getId());
+                    map.put("name", tier.getName());
+                    map.put("description", tier.getDescription());
+                    map.put("price", tier.getPrice());
+                    map.put("quantity", tier.getQuantity());
+                    map.put("available", tier.getAvailable());
+                    map.put("sectionId", tier.getSectionId());
+
+                    // Add simplified event info
+                    if (tier.getEvent() != null) {
+                        Map<String, Object> eventMap = new HashMap<>();
+                        eventMap.put("id", tier.getEvent().getId());
+                        eventMap.put("name", tier.getEvent().getName());
+                        eventMap.put("eventDate", tier.getEvent().getEventDate());
+                        map.put("event", eventMap);
+                    }
+
+                    return map;
+                })
                 .collect(Collectors.toList());
-        return new ResponseEntity<>(pricingTierResponses, HttpStatus.OK);
+
+        return new ResponseEntity<>(simplifiedTiers, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PricingTierResponse> getPricingTierById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getPricingTierById(@PathVariable Long id) {
         return pricingTierService.getPricingTierById(id)
-                .map(pricingTier -> {
-                    PricingTierResponse response = pricingTierMapper.toResponse(pricingTier);
-                    return new ResponseEntity<>(response, HttpStatus.OK);
+                .map(tier -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", tier.getId());
+                    map.put("name", tier.getName());
+                    map.put("description", tier.getDescription());
+                    map.put("price", tier.getPrice());
+                    map.put("quantity", tier.getQuantity());
+                    map.put("available", tier.getAvailable());
+                    map.put("sectionId", tier.getSectionId());
+
+                    // Add simplified event info
+                    if (tier.getEvent() != null) {
+                        Map<String, Object> eventMap = new HashMap<>();
+                        eventMap.put("id", tier.getEvent().getId());
+                        eventMap.put("name", tier.getEvent().getName());
+                        eventMap.put("eventDate", tier.getEvent().getEventDate());
+
+                        // Add simplified venue info
+                        if (tier.getEvent().getVenue() != null) {
+                            Map<String, Object> venueMap = new HashMap<>();
+                            venueMap.put("id", tier.getEvent().getVenue().getId());
+                            venueMap.put("name", tier.getEvent().getVenue().getName());
+                            venueMap.put("city", tier.getEvent().getVenue().getCity());
+                            eventMap.put("venue", venueMap);
+                        }
+
+                        map.put("event", eventMap);
+                    }
+
+                    return new ResponseEntity<>(map, HttpStatus.OK);
                 })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/event/{eventId}")
-    public ResponseEntity<List<PricingTierResponse>> getPricingTiersByEvent(@PathVariable Long eventId) {
+    public ResponseEntity<List<Map<String, Object>>> getPricingTiersByEvent(@PathVariable Long eventId) {
         List<PricingTier> pricingTiers = pricingTierService.getPricingTiersByEvent(eventId);
-        List<PricingTierResponse> pricingTierResponses = pricingTiers.stream()
-                .map(pricingTierMapper::toResponse)
+
+        List<Map<String, Object>> simplifiedTiers = pricingTiers.stream()
+                .map(tier -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", tier.getId());
+                    map.put("name", tier.getName());
+                    map.put("description", tier.getDescription());
+                    map.put("price", tier.getPrice());
+                    map.put("quantity", tier.getQuantity());
+                    map.put("available", tier.getAvailable());
+                    map.put("sectionId", tier.getSectionId());
+
+                    // Add simplified event info
+                    if (tier.getEvent() != null) {
+                        Map<String, Object> eventMap = new HashMap<>();
+                        eventMap.put("id", tier.getEvent().getId());
+                        eventMap.put("name", tier.getEvent().getName());
+                        map.put("event", eventMap);
+                    }
+
+                    return map;
+                })
                 .collect(Collectors.toList());
-        return new ResponseEntity<>(pricingTierResponses, HttpStatus.OK);
+
+        return new ResponseEntity<>(simplifiedTiers, HttpStatus.OK);
     }
 
     @PostMapping

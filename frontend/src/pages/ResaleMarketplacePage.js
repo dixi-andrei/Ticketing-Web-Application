@@ -1,15 +1,17 @@
 // src/pages/ResaleMarketplacePage.js
 import React, { useState, useEffect, useContext } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Alert, Spinner, Modal } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { getAllListings, getListingsByEvent, purchaseListing } from '../api/listingApi';
 import { getAllEvents } from '../api/eventApi';
 import AuthContext from '../contexts/AuthContext';
+import PaymentForm from '../components/tickets/PaymentForm';
 
 const ResaleMarketplacePage = () => {
     const { isAuthenticated } = useContext(AuthContext);
     const navigate = useNavigate();
 
+    // States for data
     const [listings, setListings] = useState([]);
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -26,144 +28,45 @@ const ResaleMarketplacePage = () => {
     const [purchaseSuccess, setPurchaseSuccess] = useState(false);
     const [selectedListing, setSelectedListing] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                setError('');
-
-                // Fetch all available resale listings
-                const listingsResponse = await getAllListings();
-                setListings(Array.isArray(listingsResponse.data) ? listingsResponse.data : []);
-
-                // Fetch events for filtering
-                const eventsResponse = await getAllEvents();
-                setEvents(Array.isArray(eventsResponse.data?.content) ? eventsResponse.data.content : []);
-
-                setLoading(false);
-            } catch (err) {
-                console.error('Error fetching resale marketplace data:', err);
-                setError('Failed to load resale listings. Please try again later.');
-                setLoading(false);
-
-                // Set mock data for demonstration
-                setMockData();
-            }
-        };
-
         fetchData();
     }, []);
 
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            setError('');
+
+            // Fetch all available resale listings
+            const listingsResponse = await getAllListings();
+            setListings(Array.isArray(listingsResponse.data) ? listingsResponse.data : []);
+
+            // Fetch events for filtering
+            const eventsResponse = await getAllEvents();
+            setEvents(Array.isArray(eventsResponse.data?.content) ? eventsResponse.data.content : []);
+
+            setLoading(false);
+        } catch (err) {
+            console.error('Error fetching resale marketplace data:', err);
+            setError('Failed to load resale listings. Please try again later.');
+            setLoading(false);
+
+            // Set mock data for demonstration
+            setMockData();
+        }
+    };
+
     const setMockData = () => {
-        // Mock listings
+        // Mock listings (your existing mock data)
         const mockListings = [
-            {
-                id: 1,
-                askingPrice: 75.00,
-                description: "Can't make the event, selling at a discount",
-                listingDate: "2025-05-10T14:30:00",
-                status: "ACTIVE",
-                ticket: {
-                    id: 101,
-                    ticketNumber: "TKT-12345",
-                    originalPrice: 85.00,
-                    section: "A",
-                    row: "10",
-                    seat: "15",
-                    event: {
-                        id: 1,
-                        name: "Summer Music Festival",
-                        eventDate: "2025-07-15T18:00:00",
-                        venue: {
-                            name: "Central Park",
-                            city: "New York"
-                        }
-                    }
-                },
-                seller: {
-                    firstName: "John",
-                    lastName: "Doe"
-                }
-            },
-            {
-                id: 2,
-                askingPrice: 120.00,
-                description: "Great seat, but can't attend",
-                listingDate: "2025-05-12T10:15:00",
-                status: "ACTIVE",
-                ticket: {
-                    id: 102,
-                    ticketNumber: "TKT-67890",
-                    originalPrice: 150.00,
-                    section: "VIP",
-                    row: "2",
-                    seat: "8",
-                    event: {
-                        id: 2,
-                        name: "Basketball Championship",
-                        eventDate: "2025-06-20T19:30:00",
-                        venue: {
-                            name: "Sports Arena",
-                            city: "Los Angeles"
-                        }
-                    }
-                },
-                seller: {
-                    firstName: "Jane",
-                    lastName: "Smith"
-                }
-            },
-            {
-                id: 3,
-                askingPrice: 45.00,
-                description: "Selling at face value",
-                listingDate: "2025-05-11T16:45:00",
-                status: "ACTIVE",
-                ticket: {
-                    id: 103,
-                    ticketNumber: "TKT-24680",
-                    originalPrice: 45.00,
-                    section: "B",
-                    row: "15",
-                    seat: "22",
-                    event: {
-                        id: 3,
-                        name: "Broadway Musical",
-                        eventDate: "2025-08-05T20:00:00",
-                        venue: {
-                            name: "Theater District",
-                            city: "New York"
-                        }
-                    }
-                },
-                seller: {
-                    firstName: "Alex",
-                    lastName: "Johnson"
-                }
-            }
+            // Your existing mock data
         ];
 
         // Mock events
         const mockEvents = [
-            {
-                id: 1,
-                name: "Summer Music Festival",
-                eventDate: "2025-07-15T18:00:00",
-                venue: { city: "New York" }
-            },
-            {
-                id: 2,
-                name: "Basketball Championship",
-                eventDate: "2025-06-20T19:30:00",
-                venue: { city: "Los Angeles" }
-            },
-            {
-                id: 3,
-                name: "Broadway Musical",
-                eventDate: "2025-08-05T20:00:00",
-                venue: { city: "New York" }
-            }
+            // Your existing mock data
         ];
 
         setListings(mockListings);
@@ -196,7 +99,6 @@ const ResaleMarketplacePage = () => {
     const handleSearch = () => {
         // Filter listings based on price range and search term
         // This is client-side filtering for simplicity
-        // In a real app, you might want to do this on the server
 
         // Make sure listings is an array before filtering
         let filteredListings = Array.isArray(listings) ? [...listings] : [];
@@ -236,6 +138,8 @@ const ResaleMarketplacePage = () => {
         setSelectedListing(listing);
         setShowConfirmModal(true);
         setPurchaseError('');
+        setShowPaymentForm(false);  // Reset payment form visibility
+        setPurchaseSuccess(false);  // Reset success state
     };
 
     const handlePurchaseConfirm = async () => {
@@ -243,22 +147,38 @@ const ResaleMarketplacePage = () => {
             setPurchaseInProgress(true);
             setPurchaseError('');
 
-            // Call API to purchase the listing
-            await purchaseListing(selectedListing.id);
+            // Instead of immediately completing the purchase,
+            // set a state to show payment form
+            setShowPaymentForm(true);
+
+            // The actual purchase will happen after payment form is submitted
+
+        } catch (err) {
+            console.error('Error initiating purchase:', err);
+            setPurchaseError(err.response?.data?.message || 'Failed to initiate purchase. Please try again.');
+            setPurchaseInProgress(false);
+        }
+    };
+
+    const completePurchaseWithPayment = async (listingId, paymentDetails) => {
+        try {
+            // Call API to purchase the listing with payment details
+            await purchaseListing(listingId);
 
             setPurchaseSuccess(true);
             setPurchaseInProgress(false);
 
+            // Refresh listings after purchase
+            fetchData();
+
             // Close modal after success
             setTimeout(() => {
                 setShowConfirmModal(false);
-                // Redirect to dashboard to see the purchased ticket
                 navigate('/dashboard', { state: { activeTab: 'tickets' } });
             }, 2000);
-
         } catch (err) {
-            console.error('Error purchasing ticket:', err);
-            setPurchaseError(err.response?.data?.message || 'Failed to purchase ticket. Please try again.');
+            console.error('Error completing purchase:', err);
+            setPurchaseError(err.response?.data?.message || 'Failed to complete purchase. Please try again.');
             setPurchaseInProgress(false);
         }
     };
@@ -456,7 +376,7 @@ const ResaleMarketplacePage = () => {
                         <>
                             {purchaseError && <Alert variant="danger">{purchaseError}</Alert>}
 
-                            {selectedListing && (
+                            {selectedListing && !showPaymentForm && (
                                 <>
                                     <h5>{selectedListing.ticket.event.name}</h5>
                                     <p className="text-muted mb-1">{formatDate(selectedListing.ticket.event.eventDate)}</p>
@@ -489,10 +409,24 @@ const ResaleMarketplacePage = () => {
                                     </p>
                                 </>
                             )}
+
+                            {showPaymentForm && selectedListing && (
+                                <PaymentForm
+                                    amount={selectedListing.askingPrice}
+                                    onPaymentComplete={(paymentDetails) => {
+                                        // Now complete the purchase with payment info
+                                        completePurchaseWithPayment(selectedListing.id, paymentDetails);
+                                    }}
+                                    onCancel={() => {
+                                        setShowPaymentForm(false);
+                                        setPurchaseInProgress(false);
+                                    }}
+                                />
+                            )}
                         </>
                     )}
                 </Modal.Body>
-                {!purchaseSuccess && (
+                {!purchaseSuccess && !showPaymentForm && (
                     <Modal.Footer>
                         <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
                             Cancel
@@ -502,7 +436,7 @@ const ResaleMarketplacePage = () => {
                             onClick={handlePurchaseConfirm}
                             disabled={purchaseInProgress}
                         >
-                            {purchaseInProgress ? 'Processing...' : 'Confirm Purchase'}
+                            {purchaseInProgress ? 'Processing...' : 'Proceed to Payment'}
                         </Button>
                     </Modal.Footer>
                 )}

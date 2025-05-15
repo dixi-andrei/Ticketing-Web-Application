@@ -41,7 +41,30 @@ const AdminDashboardPage = () => {
 
     useEffect(() => {
         fetchDashboardData();
+        // Load all key statistics regardless of active tab
+        fetchDashboardStats();
     }, [activeTab]);
+
+    const fetchDashboardStats = async () => {
+        try {
+            // Fetch key statistics for the dashboard
+            const [eventsRes, usersRes, ticketsRes, transactionsRes] = await Promise.all([
+                axiosInstance.get('/events'),
+                axiosInstance.get('/users'),
+                axiosInstance.get('/tickets'),
+                axiosInstance.get('/transactions')
+            ]);
+
+            setEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+            setTickets(Array.isArray(ticketsRes.data) ? ticketsRes.data : []);
+            setTransactions(Array.isArray(transactionsRes.data) ? transactionsRes.data : []);
+        } catch (err) {
+            console.error('Error fetching dashboard stats:', err);
+            // Don't show error, just use empty arrays
+            setMockData('all');
+        }
+    };
 
     // Modify your fetchDashboardData function to always guarantee arrays
     const fetchDashboardData = async () => {
@@ -1058,6 +1081,7 @@ const AdminDashboardPage = () => {
                 .toFixed(2);
         };
 
+
         const handleSubmit = async (e) => {
             e.preventDefault();
             const errors = validateForm();
@@ -1067,28 +1091,36 @@ const AdminDashboardPage = () => {
                 setIsSubmitting(true);
 
                 try {
-                    // Call the API to create batch tickets
-                    await adminAPI.generateBatchTickets(
-                        formData.eventId,
-                        formData.pricingTierId,
-                        formData.quantity,
-                        {
-                            section: formData.section || null,
-                            startRow: formData.startRow || null,
-                            startSeat: formData.startSeat || null
-                        }
-                    );
+                    // Combine date and time for eventDate
+                    const combinedDateTime = `${formData.eventDate}T${formData.eventTime}:00`;
 
-                    // Close the modal and refresh the tickets data
-                    setBatchTicketModal(false);
+                    // Create a new object for submission
+                    const submitData = {
+                        name: formData.name,
+                        description: formData.description,
+                        eventDate: combinedDateTime,
+                        imageUrl: formData.imageUrl,
+                        eventType: formData.eventType,
+                        status: formData.status,
+                        totalTickets: formData.totalTickets || 0,
+                        venue: {
+                            id: formData.venueId
+                        }
+                    };
+
+                    if (modalMode === 'create') {
+                        await adminAPI.createEvent(submitData);
+                    } else {
+                        await adminAPI.updateEvent(selectedItem.id, submitData);
+                    }
+
+                    handleCloseModal();
                     fetchDashboardData();
 
-                    // Show success message
-                    alert(`Successfully generated ${formData.quantity} tickets`);
                 } catch (err) {
-                    console.error('Error generating tickets:', err);
+                    console.error('Form submission error:', err);
                     setFormErrors({
-                        submit: err.response?.data?.message || 'Failed to generate tickets. Please try again.'
+                        submit: err.response?.data?.message || 'Failed to save event. Please try again.'
                     });
                 } finally {
                     setIsSubmitting(false);
@@ -1766,6 +1798,7 @@ const AdminDashboardPage = () => {
                 setPricingTiers([]);
             }
         }, [formData.eventId, events]);
+
 
         const handleChange = (e) => {
             const { name, value } = e.target;

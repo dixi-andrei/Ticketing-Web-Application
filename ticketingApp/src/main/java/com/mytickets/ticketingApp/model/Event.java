@@ -32,6 +32,7 @@ public class Event {
     @NotNull
     private LocalDateTime eventDate;
 
+    @Column(length = 2000)
     private String imageUrl;
 
     private Integer totalTickets;

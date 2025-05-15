@@ -18,7 +18,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +55,18 @@ public class EventController {
                         venueMap.put("id", event.getVenue().getId());
                         venueMap.put("name", event.getVenue().getName());
                         venueMap.put("city", event.getVenue().getCity());
+                        venueMap.put("state", event.getVenue().getState());
+                        venueMap.put("country", event.getVenue().getCountry());
                         map.put("venue", venueMap);
+                    }
+
+                    // Add simplified creator info
+                    if (event.getCreator() != null) {
+                        Map<String, Object> creatorMap = new HashMap<>();
+                        creatorMap.put("id", event.getCreator().getId());
+                        creatorMap.put("firstName", event.getCreator().getFirstName());
+                        creatorMap.put("lastName", event.getCreator().getLastName());
+                        map.put("creator", creatorMap);
                     }
 
                     return map;
@@ -67,7 +77,7 @@ public class EventController {
     }
 
     @GetMapping("/page")
-    public ResponseEntity<Page<Event>> getEventsPage(
+    public ResponseEntity<Map<String, Object>> getEventsPage(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "eventDate") String sortBy,
@@ -77,16 +87,344 @@ public class EventController {
                 Sort.Direction.DESC : Sort.Direction.ASC;
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        Page<Event> events = eventService.getEventsPage(pageable);
+        Page<Event> eventsPage = eventService.getEventsPage(pageable);
 
-        return new ResponseEntity<>(events, HttpStatus.OK);
+        // Convert page content to simplified format
+        List<Map<String, Object>> simplifiedEvents = eventsPage.getContent().stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        // Create response with pagination info
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", simplifiedEvents);
+        response.put("currentPage", eventsPage.getNumber());
+        response.put("totalItems", eventsPage.getTotalElements());
+        response.put("totalPages", eventsPage.getTotalPages());
+
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Event> getEventById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getEventById(@PathVariable Long id) {
         return eventService.getEventById(id)
-                .map(event -> new ResponseEntity<>(event, HttpStatus.OK))
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("address", event.getVenue().getAddress());
+                        venueMap.put("city", event.getVenue().getCity());
+                        venueMap.put("state", event.getVenue().getState());
+                        venueMap.put("country", event.getVenue().getCountry());
+                        venueMap.put("capacity", event.getVenue().getCapacity());
+                        venueMap.put("venueMap", event.getVenue().getVenueMap());
+                        map.put("venue", venueMap);
+                    }
+
+                    // Add simplified creator info
+                    if (event.getCreator() != null) {
+                        Map<String, Object> creatorMap = new HashMap<>();
+                        creatorMap.put("id", event.getCreator().getId());
+                        creatorMap.put("firstName", event.getCreator().getFirstName());
+                        creatorMap.put("lastName", event.getCreator().getLastName());
+                        map.put("creator", creatorMap);
+                    }
+
+                    return new ResponseEntity<>(map, HttpStatus.OK);
+                })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    @GetMapping("/creator")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getEventsByCreator() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+
+        List<Event> events = eventService.findEventsByCreator(userDetails.getId());
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/type/{eventType}")
+    public ResponseEntity<List<Map<String, Object>>> getEventsByType(@PathVariable EventType eventType) {
+        List<Event> events = eventService.findEventsByType(eventType);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<Map<String, Object>>> getEventsByStatus(@PathVariable EventStatus status) {
+        List<Event> events = eventService.findEventsByStatus(status);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<Map<String, Object>>> getUpcomingEvents() {
+        List<Event> events = eventService.findUpcomingEvents();
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/venue/{venueId}")
+    public ResponseEntity<List<Map<String, Object>>> getEventsByVenue(@PathVariable Long venueId) {
+        List<Event> events = eventService.findEventsByVenue(venueId);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<Map<String, Object>>> searchEvents(@RequestParam String name) {
+        List<Event> events = eventService.searchEventsByName(name);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/available")
+    public ResponseEntity<List<Map<String, Object>>> getEventsWithAvailableTickets() {
+        List<Event> events = eventService.findUpcomingEventsWithAvailableTickets();
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
+    }
+
+    @GetMapping("/city/{city}")
+    public ResponseEntity<List<Map<String, Object>>> getEventsByCity(@PathVariable String city) {
+        List<Event> events = eventService.findUpcomingEventsByCity(city);
+
+        List<Map<String, Object>> simplifiedEvents = events.stream()
+                .map(event -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", event.getId());
+                    map.put("name", event.getName());
+                    map.put("description", event.getDescription());
+                    map.put("eventDate", event.getEventDate());
+                    map.put("imageUrl", event.getImageUrl());
+                    map.put("totalTickets", event.getTotalTickets());
+                    map.put("availableTickets", event.getAvailableTickets());
+                    map.put("eventType", event.getEventType());
+                    map.put("status", event.getStatus());
+
+                    // Add simplified venue info
+                    if (event.getVenue() != null) {
+                        Map<String, Object> venueMap = new HashMap<>();
+                        venueMap.put("id", event.getVenue().getId());
+                        venueMap.put("name", event.getVenue().getName());
+                        venueMap.put("city", event.getVenue().getCity());
+                        map.put("venue", venueMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedEvents, HttpStatus.OK);
     }
 
     @PostMapping
@@ -113,55 +451,4 @@ public class EventController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    @GetMapping("/creator")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Event>> getEventsByCreator() {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
-                .getAuthentication().getPrincipal();
-
-        List<Event> events = eventService.findEventsByCreator(userDetails.getId());
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/type/{eventType}")
-    public ResponseEntity<List<Event>> getEventsByType(@PathVariable EventType eventType) {
-        List<Event> events = eventService.findEventsByType(eventType);
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/status/{status}")
-    public ResponseEntity<List<Event>> getEventsByStatus(@PathVariable EventStatus status) {
-        List<Event> events = eventService.findEventsByStatus(status);
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/upcoming")
-    public ResponseEntity<List<Event>> getUpcomingEvents() {
-        List<Event> events = eventService.findUpcomingEvents();
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/venue/{venueId}")
-    public ResponseEntity<List<Event>> getEventsByVenue(@PathVariable Long venueId) {
-        List<Event> events = eventService.findEventsByVenue(venueId);
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/search")
-    public ResponseEntity<List<Event>> searchEvents(@RequestParam String name) {
-        List<Event> events = eventService.searchEventsByName(name);
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/available")
-    public ResponseEntity<List<Event>> getEventsWithAvailableTickets() {
-        List<Event> events = eventService.findUpcomingEventsWithAvailableTickets();
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
-
-    @GetMapping("/city/{city}")
-    public ResponseEntity<List<Event>> getEventsByCity(@PathVariable String city) {
-        List<Event> events = eventService.findUpcomingEventsByCity(city);
-        return new ResponseEntity<>(events, HttpStatus.OK);
-    }
 }

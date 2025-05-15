@@ -29,80 +29,7 @@ const EventDetailPage = () => {
     const [purchaseError, setPurchaseError] = useState('');
     const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
-    useEffect(() => {
-        const fetchEventDetails = async () => {
-            try {
-                setLoading(true);
-                const eventResponse = await getEventById(id);
-                setEvent(eventResponse.data);
-
-                const tiersResponse = await getPricingTiersByEvent(id);
-                setPricingTiers(tiersResponse.data);
-
-                setLoading(false);
-            } catch (err) {
-                console.error('Error fetching event details:', err);
-                setError('Failed to load event details. Please try again later.');
-                setLoading(false);
-
-                // Mock data for demonstration if API fails
-                const mockEvent = {
-                    id: parseInt(id),
-                    name: "Sample Event Title",
-                    description: "This is a detailed sample event description. Join us for an amazing experience with great performances and activities. This event is designed to provide entertainment and fun for all attendees.",
-                    eventDate: "2025-08-15T19:00:00",
-                    imageUrl: "https://placehold.co/800x400?text=Event+Image",
-                    totalTickets: 1000,
-                    availableTickets: 500,
-                    eventType: "CONCERT",
-                    status: "SCHEDULED",
-                    venue: {
-                        id: 1,
-                        name: "Grand Arena",
-                        address: "123 Event Street",
-                        city: "New York",
-                        state: "NY",
-                        country: "USA",
-                        capacity: 1500
-                    },
-                    creatorName: "Event Organizer"
-                };
-
-                const mockPricingTiers = [
-                    {
-                        id: 1,
-                        name: "VIP",
-                        description: "Best seats with special perks",
-                        price: 200.0,
-                        quantity: 100,
-                        available: 40
-                    },
-                    {
-                        id: 2,
-                        name: "Regular",
-                        description: "Standard seating",
-                        price: 100.0,
-                        quantity: 500,
-                        available: 300
-                    },
-                    {
-                        id: 3,
-                        name: "Economy",
-                        description: "Basic seating",
-                        price: 50.0,
-                        quantity: 400,
-                        available: 160
-                    }
-                ];
-
-                setEvent(mockEvent);
-                setPricingTiers(mockPricingTiers);
-            }
-        };
-
-        fetchEventDetails();
-    }, [id]);
-
+    // Define formatDate function to fix the error
     const formatDate = (dateString) => {
         try {
             const date = new Date(dateString);
@@ -116,6 +43,40 @@ const EventDetailPage = () => {
             return "Date not available";
         }
     };
+
+    useEffect(() => {
+        const fetchEventDetails = async () => {
+            try {
+                setLoading(true);
+                setError('');
+
+                // Fetch event details
+                const eventResponse = await getEventById(id);
+                if (eventResponse && eventResponse.data) {
+                    setEvent(eventResponse.data);
+
+                    // Fetch pricing tiers
+                    try {
+                        const tiersResponse = await getPricingTiersByEvent(id);
+                        setPricingTiers(Array.isArray(tiersResponse.data) ? tiersResponse.data : []);
+                    } catch (tierError) {
+                        console.error('Error fetching pricing tiers:', tierError);
+                        setPricingTiers([]);
+                    }
+                } else {
+                    setError('Event not found or data is incomplete.');
+                }
+
+                setLoading(false);
+            } catch (err) {
+                console.error('Error fetching event details:', err);
+                setError('Failed to load event details. Please try again later.');
+                setLoading(false);
+            }
+        };
+
+        fetchEventDetails();
+    }, [id]);
 
     const handlePurchaseClick = (tier) => {
         if (!isAuthenticated) {
@@ -272,7 +233,7 @@ const EventDetailPage = () => {
                                         <div key={tier.id} className="mb-3 p-3 border rounded">
                                             <div className="d-flex justify-content-between">
                                                 <h5>{tier.name}</h5>
-                                                <h5>${tier.price.toFixed(2)}</h5>
+                                                <h5>${tier.price?.toFixed(2)}</h5>
                                             </div>
                                             <p className="text-muted mb-1">{tier.description}</p>
                                             <p className="mb-2">
@@ -333,7 +294,7 @@ const EventDetailPage = () => {
                                 <strong>Date:</strong> {formatDate(event.eventDate)}<br />
                                 <strong>Venue:</strong> {event.venue?.name}, {event.venue?.city}<br />
                                 <strong>Ticket Type:</strong> {selectedTier?.name}<br />
-                                <strong>Price per Ticket:</strong> ${selectedTier?.price.toFixed(2)}
+                                <strong>Price per Ticket:</strong> ${selectedTier?.price?.toFixed(2)}
                             </p>
 
                             <Form.Group className="mb-3">
