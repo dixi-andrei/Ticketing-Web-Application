@@ -3,6 +3,7 @@ package com.mytickets.ticketingApp.controller;
 import com.mytickets.ticketingApp.model.User;
 import com.mytickets.ticketingApp.payload.response.MessageResponse;
 import com.mytickets.ticketingApp.security.services.UserDetailsImpl;
+import com.mytickets.ticketingApp.service.UserBalanceService;
 import com.mytickets.ticketingApp.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,12 +13,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+
+    @Autowired
+    private UserBalanceService userBalanceService;
 
     @Autowired
     private UserService userService;
@@ -45,14 +52,28 @@ public class UserController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    // Update the getUserProfile method in UserController.java
     @GetMapping("/profile")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<User> getUserProfile() {
+    public ResponseEntity<Map<String, Object>> getUserProfile() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
 
         return userService.getUserById(userDetails.getId())
-                .map(user -> new ResponseEntity<>(user, HttpStatus.OK))
+                .map(user -> {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("id", user.getId());
+                    response.put("email", user.getEmail());
+                    response.put("firstName", user.getFirstName());
+                    response.put("lastName", user.getLastName());
+                    response.put("roles", user.getRoles());
+
+                    // Add balance info
+                    Double balance = userBalanceService.getCurrentBalance(user.getId());
+                    response.put("balance", balance);
+
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                })
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 

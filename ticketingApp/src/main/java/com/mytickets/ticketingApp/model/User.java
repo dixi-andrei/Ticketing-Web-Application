@@ -29,6 +29,10 @@ public class User {
 
     private boolean enabled = true;
 
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private UserBalance userBalance;
+
     @Column(name = "provider")
     @Enumerated(EnumType.STRING)
     private AuthProvider provider;
@@ -113,5 +117,13 @@ public class User {
 
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
+    }
+
+    public void setUserBalance(UserBalance userBalance) {
+        this.userBalance = userBalance;
+    }
+
+    public UserBalance getUserBalance() {
+        return userBalance;
     }
 }

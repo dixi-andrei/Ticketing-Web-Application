@@ -20,4 +20,6 @@ public interface TransactionService {
     Double getTotalPurchasesByUser(Long userId);
     Transaction processPayment(Long transactionId, String paymentMethod, String paymentDetails);
     Transaction refundTransaction(Long transactionId, String reason);
+
+    Transaction processPaymentWithBalance(Long transactionId, Long buyerId);
 }

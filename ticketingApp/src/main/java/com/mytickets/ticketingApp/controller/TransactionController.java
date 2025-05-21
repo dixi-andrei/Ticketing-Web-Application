@@ -391,4 +391,15 @@ public class TransactionController {
         Transaction refundedTransaction = transactionService.refundTransaction(id, reason);
         return new ResponseEntity<>(refundedTransaction, HttpStatus.OK);
     }
+
+    // Add this to TransactionController.java
+    @PostMapping("/{id}/pay-with-balance")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<Transaction> payWithBalance(@PathVariable Long id) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+
+        Transaction completedTransaction = transactionService.processPaymentWithBalance(id, userDetails.getId());
+        return new ResponseEntity<>(completedTransaction, HttpStatus.OK);
+    }
 }

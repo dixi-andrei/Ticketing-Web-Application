@@ -6,6 +6,7 @@ import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.repository.TransactionRepository;
 import com.mytickets.ticketingApp.repository.UserRepository;
 import com.mytickets.ticketingApp.service.TicketListingService;
+import com.mytickets.ticketingApp.service.UserBalanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,8 @@ public class TicketListingServiceImpl implements TicketListingService {
 
     @Autowired
     private TransactionRepository transactionRepository;
+    @Autowired
+    private UserBalanceService userBalanceService;
 
     @Override
     public List<TicketListing> getAllListings() {
@@ -166,7 +169,7 @@ public class TicketListingServiceImpl implements TicketListingService {
 
         // Update ticket ownership and status
         Ticket ticket = listing.getTicket();
-        User previousOwner = ticket.getOwner();
+        User seller = ticket.getOwner();
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.RESOLD);
         ticketRepository.save(ticket);
@@ -177,11 +180,21 @@ public class TicketListingServiceImpl implements TicketListingService {
         transaction.setType(TransactionType.SECONDARY_PURCHASE);
         transaction.setStatus(TransactionStatus.COMPLETED);
         transaction.setBuyer(buyer);
-        transaction.setSeller(listing.getSeller());
+        transaction.setSeller(seller);
         transaction.setTicket(ticket);
         transaction.setTransactionDate(LocalDateTime.now());
 
-        transactionRepository.save(transaction);
+        // Save transaction
+        Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Add money to seller's balance
+        userBalanceService.addToBalance(
+                seller.getId(),
+                listing.getAskingPrice(),
+                "Payment for ticket " + ticket.getTicketNumber(),
+                "Transaction",
+                savedTransaction.getId()
+        );
 
         return ticketListingRepository.save(listing);
     }

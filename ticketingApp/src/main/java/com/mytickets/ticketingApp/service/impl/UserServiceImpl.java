@@ -20,6 +20,9 @@ import java.util.*;
 public class UserServiceImpl implements UserService {
 
     @Autowired
+    private UserBalanceServiceImpl userBalanceService;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -52,6 +55,7 @@ public class UserServiceImpl implements UserService {
         return userRepository.findByEmail(email);
     }
 
+    // Update UserServiceImpl.java createUser method
     @Override
     @Transactional
     public User createUser(User user) {
@@ -67,7 +71,13 @@ public class UserServiceImpl implements UserService {
             user.setRoles(roles);
         }
 
-        return userRepository.save(user);
+        // Save user
+        User savedUser = userRepository.save(user);
+
+        // Initialize user balance
+        userBalanceService.getOrCreateUserBalance(savedUser.getId());
+
+        return savedUser;
     }
 
     @Override

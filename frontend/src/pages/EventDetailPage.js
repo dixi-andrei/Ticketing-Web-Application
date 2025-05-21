@@ -199,7 +199,6 @@ const EventDetailPage = () => {
                         <Card.Body>
                             <h4>About This Event</h4>
                             <p>{event.description || "No description available for this event."}</p>
-
                             <hr />
 
                             <h4>Venue Information</h4>
