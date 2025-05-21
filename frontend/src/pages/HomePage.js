@@ -4,6 +4,7 @@ import { Container, Row, Col, Card, Button, Carousel } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosConfig';
 import { getUpcomingEvents } from '../api/eventApi';
+import { getEventImageUrl, handleImageError } from '../utils/imageUtils';
 
 const HomePage = () => {
     const [upcomingEvents, setUpcomingEvents] = useState([]);
@@ -99,9 +100,10 @@ const HomePage = () => {
                                     <Carousel.Item key={event.id}>
                                         <img
                                             className="d-block w-100 rounded"
-                                            src={event.imageUrl || "https://placehold.co/800x400?text=Event+Image"}
-                                            alt={event.name}
+                                            src={getEventImageUrl(event)}
+                                            alt={event.name || "Event"}
                                             style={{ height: '300px', objectFit: 'cover' }}
+                                            onError={(e) => handleImageError(e, event.eventType)}
                                         />
                                         <Carousel.Caption>
                                             <h3>{event.name}</h3>
@@ -135,9 +137,10 @@ const HomePage = () => {
                                     <Card className="h-100 shadow">
                                         <Card.Img
                                             variant="top"
-                                            src={event.imageUrl || "https://placehold.co/600x400?text=Event+Image"}
-                                            alt={event.name}
+                                            src={getEventImageUrl(event)}
+                                            alt={event.name || "Event"}
                                             style={{ height: '180px', objectFit: 'cover' }}
+                                            onError={(e) => handleImageError(e, event.eventType)}
                                         />
                                         <Card.Body>
                                             <Card.Title>{event.name}</Card.Title>

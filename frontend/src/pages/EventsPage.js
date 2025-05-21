@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Pagination, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { getAllEvents, getEventsByType, searchEvents } from '../api/eventApi';
+import { getEventImageUrl, handleImageError } from '../utils/imageUtils';
 
 
 const EventsPage = () => {
@@ -193,9 +194,10 @@ const EventsPage = () => {
                                 <Card className="h-100 shadow hover-card">
                                     <Card.Img
                                         variant="top"
-                                        src={event.imageUrl || "https://placehold.co/600x400?text=Event+Image"}
-                                        alt={event.name}
-                                        style={{ height: '180px', objectFit: 'cover' }}
+                                        src={getEventImageUrl(event)}
+                                        alt={event.name || "Event"}
+                                        style={{ maxHeight: '400px', objectFit: 'cover' }}
+                                        onError={(e) => handleImageError(e, event.eventType)}
                                     />
                                     <Card.Body>
                                         <Card.Title>{event.name}</Card.Title>

@@ -1,5 +1,6 @@
 package com.mytickets.ticketingApp.controller;
 
+import com.mytickets.ticketingApp.model.ListingStatus;
 import com.mytickets.ticketingApp.model.TicketListing;
 import com.mytickets.ticketingApp.security.services.UserDetailsImpl;
 import com.mytickets.ticketingApp.service.TicketListingService;
@@ -26,9 +27,16 @@ public class TicketListingController {
 
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAllListings() {
-        List<TicketListing> listings = ticketListingService.getAllListings();
+        // Get all listings from service
+        List<TicketListing> allListings = ticketListingService.getAllListings();
 
-        List<Map<String, Object>> simplifiedListings = listings.stream()
+        // Filter to only include ACTIVE listings
+        List<TicketListing> activeListings = allListings.stream()
+                .filter(listing -> listing.getStatus() == ListingStatus.ACTIVE)
+                .collect(Collectors.toList());
+
+        // Transform to simplified format to avoid circular references
+        List<Map<String, Object>> simplifiedListings = activeListings.stream()
                 .map(listing -> {
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", listing.getId());

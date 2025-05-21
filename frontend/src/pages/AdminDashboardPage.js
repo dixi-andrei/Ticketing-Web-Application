@@ -1262,20 +1262,7 @@ const AdminDashboardPage = () => {
                                 </Form.Group>
                             </Col>
                             <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Status</Form.Label>
-                                    <Form.Select
-                                        name="status"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="SCHEDULED">Scheduled</option>
-                                        <option value="ONGOING">Ongoing</option>
-                                        <option value="COMPLETED">Completed</option>
-                                        <option value="CANCELLED">Cancelled</option>
-                                        <option value="POSTPONED">Postponed</option>
-                                    </Form.Select>
-                                </Form.Group>
+                                {/* Status field */}
                             </Col>
                         </Row>
 

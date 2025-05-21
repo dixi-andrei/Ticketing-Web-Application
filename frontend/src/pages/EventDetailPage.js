@@ -8,6 +8,7 @@ import { purchaseTicket } from '../api/ticketApi';
 import PaymentForm from '../components/tickets/PaymentForm';
 import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
 import AuthContext from '../contexts/AuthContext';
+import { getEventImageUrl, handleImageError } from '../utils/imageUtils';
 
 const EventDetailPage = () => {
     const { id } = useParams();
@@ -190,9 +191,10 @@ const EventDetailPage = () => {
                     <Card className="mb-4 shadow-sm">
                         <Card.Img
                             variant="top"
-                            src={event.imageUrl || "https://placehold.co/800x400?text=Event+Image"}
-                            alt={event.name}
+                            src={getEventImageUrl(event)}
+                            alt={event.name || "Event"}
                             style={{ maxHeight: '400px', objectFit: 'cover' }}
+                            onError={(e) => handleImageError(e, event.eventType)}
                         />
                         <Card.Body>
                             <h4>About This Event</h4>

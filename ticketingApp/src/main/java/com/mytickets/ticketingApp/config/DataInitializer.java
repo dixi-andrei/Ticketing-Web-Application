@@ -1,4 +1,4 @@
-package com.mytickets.ticketingApp.config;
+/*package com.mytickets.ticketingApp.config;
 
 import com.mytickets.ticketingApp.model.*;
 import com.mytickets.ticketingApp.repository.*;
@@ -162,3 +162,5 @@ public class DataInitializer implements CommandLineRunner {
         return pricingTierRepository.save(pricingTier);
     }
 }
+
+ */

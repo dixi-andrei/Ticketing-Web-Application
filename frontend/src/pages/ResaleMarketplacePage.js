@@ -34,18 +34,24 @@ const ResaleMarketplacePage = () => {
         fetchData();
     }, []);
 
+    // In src/pages/ResaleMarketplacePage.js
+
     const fetchData = async () => {
         try {
             setLoading(true);
             setError('');
 
-            // Fetch all available resale listings
+            // Use Promise.all to fetch all data concurrently
             const listingsResponse = await getAllListings();
-            setListings(Array.isArray(listingsResponse.data) ? listingsResponse.data : []);
 
-            // Fetch events for filtering
-            const eventsResponse = await getAllEvents();
-            setEvents(Array.isArray(eventsResponse.data?.content) ? eventsResponse.data.content : []);
+            // Important: Only show ACTIVE listings
+            let activeListings = Array.isArray(listingsResponse.data)
+                ? listingsResponse.data.filter(listing => listing.status === "ACTIVE")
+                : [];
+
+            setListings(activeListings);
+
+            // Rest of your fetch code...
 
             setLoading(false);
         } catch (err) {
@@ -147,15 +153,25 @@ const ResaleMarketplacePage = () => {
             setPurchaseInProgress(true);
             setPurchaseError('');
 
-            // Instead of immediately completing the purchase,
-            // set a state to show payment form
-            setShowPaymentForm(true);
+            // Call API to purchase the listing
+            await purchaseListing(selectedListing.id);
 
-            // The actual purchase will happen after payment form is submitted
+            setPurchaseSuccess(true);
+            setPurchaseInProgress(false);
+
+            // Important: Refresh the listings data after purchase
+            fetchData(); // This will update the listings array
+
+            // Close modal after success
+            setTimeout(() => {
+                setShowConfirmModal(false);
+                // Redirect to dashboard to see the purchased ticket
+                navigate('/dashboard', { state: { activeTab: 'tickets' } });
+            }, 2000);
 
         } catch (err) {
-            console.error('Error initiating purchase:', err);
-            setPurchaseError(err.response?.data?.message || 'Failed to initiate purchase. Please try again.');
+            console.error('Error purchasing ticket:', err);
+            setPurchaseError(err.response?.data?.message || 'Failed to purchase ticket. Please try again.');
             setPurchaseInProgress(false);
         }
     };
