@@ -1,3 +1,4 @@
+// ticketingApp/src/main/java/com/mytickets/ticketingApp/service/impl/TicketListingServiceImpl.java
 package com.mytickets.ticketingApp.service.impl;
 
 import com.mytickets.ticketingApp.model.*;
@@ -29,6 +30,7 @@ public class TicketListingServiceImpl implements TicketListingService {
 
     @Autowired
     private TransactionRepository transactionRepository;
+
     @Autowired
     private UserBalanceService userBalanceService;
 
@@ -71,9 +73,34 @@ public class TicketListingServiceImpl implements TicketListingService {
             throw new RuntimeException("User does not own this ticket");
         }
 
-        // Check if the ticket is already listed
-        if (ticket.getStatus() == TicketStatus.LISTED) {
-            throw new RuntimeException("Ticket is already listed for sale");
+        // Check if the ticket is in a valid state for listing
+        if (ticket.getStatus() != TicketStatus.PURCHASED) {
+            throw new RuntimeException("Only purchased tickets can be listed for resale");
+        }
+
+        // Check if ticket already has an ACTIVE listing
+        Optional<TicketListing> existingListing = ticketListingRepository.findByTicketId(ticketId);
+        if (existingListing.isPresent()) {
+            TicketListing existing = existingListing.get();
+            if (existing.getStatus() == ListingStatus.ACTIVE) {
+                throw new RuntimeException("This ticket already has an active listing");
+            } else if (existing.getStatus() == ListingStatus.SOLD) {
+                throw new RuntimeException("This ticket has already been sold");
+            } else if (existing.getStatus() == ListingStatus.CANCELLED) {
+                // If there's a cancelled listing, we can reactivate it or create a new one
+                // For simplicity, let's update the existing cancelled listing
+                existing.setAskingPrice(listing.getAskingPrice());
+                existing.setDescription(listing.getDescription());
+                existing.setStatus(ListingStatus.ACTIVE);
+                existing.setListingDate(LocalDateTime.now());
+
+                // Update ticket status
+                ticket.setStatus(TicketStatus.LISTED);
+                ticket.setCurrentPrice(listing.getAskingPrice());
+                ticketRepository.save(ticket);
+
+                return ticketListingRepository.save(existing);
+            }
         }
 
         // Enforce the "no markup" rule
@@ -137,9 +164,10 @@ public class TicketListingServiceImpl implements TicketListingService {
 
         listing.setStatus(ListingStatus.CANCELLED);
 
-        // Update the ticket status
+        // Update the ticket status back to purchased
         Ticket ticket = listing.getTicket();
         ticket.setStatus(TicketStatus.PURCHASED); // Revert to purchased state
+        ticket.setCurrentPrice(ticket.getOriginalPrice()); // Reset to original price
         ticketRepository.save(ticket);
 
         ticketListingRepository.save(listing);
@@ -172,6 +200,7 @@ public class TicketListingServiceImpl implements TicketListingService {
         User seller = ticket.getOwner();
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.RESOLD);
+        ticket.setPurchaseDate(LocalDateTime.now()); // Update purchase date for new owner
         ticketRepository.save(ticket);
 
         // Create transaction record

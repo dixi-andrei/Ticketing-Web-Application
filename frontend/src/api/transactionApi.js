@@ -1,4 +1,4 @@
-// src/api/transactionApi.js
+// frontend/src/api/transactionApi.js - Updated with balance payment support
 import axiosInstance from './axiosConfig';
 
 const API_URL = '/transactions';
@@ -43,13 +43,18 @@ export const updateTransactionStatus = (id, status) => {
     return axiosInstance.put(`${API_URL}/${id}/status?status=${status}`);
 };
 
-// Process payment
+// Process payment with credit card
 export const processPayment = (transactionId, paymentMethod, paymentDetails = null) => {
     return axiosInstance.post(
         `${API_URL}/${transactionId}/process-payment?paymentMethod=${paymentMethod}${
             paymentDetails ? `&paymentDetails=${paymentDetails}` : ''
         }`
     );
+};
+
+// Process payment with account balance
+export const processPaymentWithBalance = (transactionId) => {
+    return axiosInstance.post(`${API_URL}/${transactionId}/pay-with-balance`);
 };
 
 // Refund transaction
@@ -82,4 +87,20 @@ export const getMyTotalPurchases = () => {
 
 export const getMyTotalSales = () => {
     return axiosInstance.get(`${API_URL}/my-total-sales`);
+};
+
+// Create a ticket purchase transaction with payment method choice
+export const createTicketPurchaseTransaction = (ticketId, paymentMethod = 'card') => {
+    return axiosInstance.post(`${API_URL}/purchase-ticket`, {
+        ticketId,
+        paymentMethod
+    });
+};
+
+// Create a listing purchase transaction with payment method choice
+export const createListingPurchaseTransaction = (listingId, paymentMethod = 'card') => {
+    return axiosInstance.post(`${API_URL}/purchase-listing`, {
+        listingId,
+        paymentMethod
+    });
 };

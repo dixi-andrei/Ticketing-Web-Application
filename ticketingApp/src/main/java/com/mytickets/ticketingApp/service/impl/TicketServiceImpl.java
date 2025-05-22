@@ -18,6 +18,9 @@ import java.util.UUID;
 public class TicketServiceImpl implements TicketService {
 
     @Autowired
+    private TicketListingRepository ticketListingRepository;
+
+    @Autowired
     private TicketRepository ticketRepository;
 
     @Autowired
@@ -300,5 +303,30 @@ public class TicketServiceImpl implements TicketService {
 
         ticket.setUsed(true);
         ticketRepository.save(ticket);
+    }
+
+    @Override
+    public boolean canTicketBeResold(Long ticketId) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
+
+        // Check if ticket is in PURCHASED status (not LISTED, RESOLD, etc.)
+        if (ticket.getStatus() != TicketStatus.PURCHASED) {
+            return false;
+        }
+
+        // Check if ticket already has an active listing
+        Optional<TicketListing> existingListing = ticketListingRepository.findByTicketId(ticketId);
+        if (existingListing.isPresent() && existingListing.get().getStatus() == ListingStatus.ACTIVE) {
+            return false;
+        }
+
+        // Check if event hasn't happened yet
+        LocalDateTime now = LocalDateTime.now();
+        if (ticket.getEvent().getEventDate().isBefore(now)) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -1,14 +1,17 @@
-// src/pages/EventDetailPage.js
+// src/pages/EventDetailPage.js - Updated with balance payment support
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Badge, Alert, Modal, Form } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Alert, Modal } from 'react-bootstrap';
 import { getEventById } from '../api/eventApi';
 import { getPricingTiersByEvent } from '../api/pricingTierApi';
 import { purchaseTicket } from '../api/ticketApi';
-import PaymentForm from '../components/tickets/PaymentForm';
+import { processPaymentWithBalance, processPayment } from '../api/transactionApi';
+import EnhancedPaymentForm from '../components/tickets/EnhancedPaymentForm';
 import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
 import AuthContext from '../contexts/AuthContext';
 import { getEventImageUrl, handleImageError } from '../utils/imageUtils';
+
+
 
 const EventDetailPage = () => {
     const { id } = useParams();
@@ -28,9 +31,8 @@ const EventDetailPage = () => {
     const [quantity, setQuantity] = useState(1);
     const [purchaseLoading, setPurchaseLoading] = useState(false);
     const [purchaseError, setPurchaseError] = useState('');
-    const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+    const [currentTransaction, setCurrentTransaction] = useState(null);
 
-    // Define formatDate function to fix the error
     const formatDate = (dateString) => {
         try {
             const date = new Date(dateString);
@@ -92,52 +94,114 @@ const EventDetailPage = () => {
         setShowPurchaseModal(true);
     };
 
-    const handlePaymentComplete = (paymentInfo) => {
-        // In a real app, you would call your API to create the ticket and transaction
-        const transactionDetails = {
-            transactionId: 'TRX-' + Math.random().toString(36).substr(2, 9),
-            eventName: event.name,
-            quantity: quantity,
-            totalAmount: selectedTier?.price * quantity * 1.05,
-            lastFour: paymentInfo.lastFour,
-            paymentMethod: 'Credit Card',
-            purchaseDate: new Date().toISOString()
-        };
+    const handlePaymentComplete = async (paymentInfo) => {
+        try {
+            setPurchaseLoading(true);
 
-        setPurchaseDetails(transactionDetails);
-        setPurchaseStep('confirmation');
+            let transactionResult;
 
-        // Update the event's available tickets (this would be handled by the backend in a real app)
-        if (event && selectedTier) {
-            const updatedTiers = pricingTiers.map(tier => {
-                if (tier.id === selectedTier.id) {
-                    return {
-                        ...tier,
-                        available: tier.available - quantity
-                    };
-                }
-                return tier;
-            });
+            if (paymentInfo.paymentMethod === 'balance') {
+                // Process balance payment
+                transactionResult = await processPaymentWithBalance(currentTransaction.id);
 
-            setPricingTiers(updatedTiers);
-            setEvent({
-                ...event,
-                availableTickets: event.availableTickets - quantity
-            });
+                // Update local state to reflect balance usage
+                const transactionDetails = {
+                    transactionId: transactionResult.data.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
+                    eventName: event.name,
+                    quantity: quantity,
+                    totalAmount: selectedTier?.price * quantity,
+                    paymentMethod: 'Account Balance',
+                    balanceUsed: paymentInfo.balanceUsed,
+                    newBalance: paymentInfo.newBalance,
+                    purchaseDate: new Date().toISOString()
+                };
+
+                setPurchaseDetails(transactionDetails);
+            } else {
+                // Process credit card payment
+                transactionResult = await processPayment(
+                    currentTransaction.id,
+                    'credit_card',
+                    JSON.stringify(paymentInfo.billingInfo)
+                );
+
+                const transactionDetails = {
+                    transactionId: paymentInfo.paymentId,
+                    eventName: event.name,
+                    quantity: quantity,
+                    totalAmount: selectedTier?.price * quantity * 1.029, // Include processing fee
+                    lastFour: paymentInfo.lastFour,
+                    paymentMethod: 'Credit Card',
+                    purchaseDate: new Date().toISOString()
+                };
+
+                setPurchaseDetails(transactionDetails);
+            }
+
+            setPurchaseStep('confirmation');
+
+            // Update the event's available tickets
+            if (event && selectedTier) {
+                const updatedTiers = pricingTiers.map(tier => {
+                    if (tier.id === selectedTier.id) {
+                        return {
+                            ...tier,
+                            available: tier.available - quantity
+                        };
+                    }
+                    return tier;
+                });
+
+                setPricingTiers(updatedTiers);
+                setEvent({
+                    ...event,
+                    availableTickets: event.availableTickets - quantity
+                });
+            }
+
+            setPurchaseLoading(false);
+        } catch (error) {
+            console.error('Payment processing error:', error);
+            setPurchaseError(error.response?.data?.message || 'Payment processing failed. Please try again.');
+            setPurchaseLoading(false);
         }
     };
 
-    const handlePurchaseConfirm = () => {
-        // Move to payment step
-        setPurchaseStep('payment');
+    const handlePurchaseConfirm = async () => {
+        try {
+            setPurchaseLoading(true);
+            setPurchaseError('');
+
+            // Create initial transaction
+            // In a real implementation, you'd call your API to create a pending transaction
+            const mockTransaction = {
+                id: Math.floor(Math.random() * 10000),
+                amount: selectedTier.price * quantity,
+                status: 'PENDING',
+                ticket: {
+                    event: event,
+                    originalPrice: selectedTier.price
+                }
+            };
+
+            setCurrentTransaction(mockTransaction);
+            setPurchaseStep('payment');
+            setPurchaseLoading(false);
+        } catch (error) {
+            console.error('Error creating transaction:', error);
+            setPurchaseError('Failed to initiate purchase. Please try again.');
+            setPurchaseLoading(false);
+        }
     };
 
     const resetPurchaseModal = () => {
         setPurchaseStep('select');
         setPurchaseDetails(null);
+        setCurrentTransaction(null);
         setQuantity(1);
         setPurchaseError('');
         setShowPurchaseModal(false);
+        setPurchaseLoading(false);
     };
 
     if (loading) {
@@ -225,7 +289,6 @@ const EventDetailPage = () => {
                             <h4 className="my-1">Tickets</h4>
                         </Card.Header>
                         <Card.Body>
-                            {/* Check if there are any available tickets in pricing tiers instead of just event.availableTickets */}
                             {pricingTiers.some(tier => tier.available > 0) ? (
                                 <>
                                     <p>{event.availableTickets} tickets available out of {event.totalTickets}</p>
@@ -264,6 +327,9 @@ const EventDetailPage = () => {
                                     <i className="bi bi-shield-check"></i> Secure checkout
                                 </p>
                                 <p className="text-muted small">
+                                    <i className="bi bi-wallet2"></i> Pay with account balance or credit card
+                                </p>
+                                <p className="text-muted small">
                                     <i className="bi bi-arrow-repeat"></i> All tickets include our safe resale guarantee
                                 </p>
                             </div>
@@ -281,7 +347,7 @@ const EventDetailPage = () => {
                 <Modal.Header closeButton>
                     <Modal.Title>
                         {purchaseStep === 'select' && 'Purchase Tickets'}
-                        {purchaseStep === 'payment' && 'Complete Your Purchase'}
+                        {purchaseStep === 'payment' && 'Choose Payment Method'}
                         {purchaseStep === 'confirmation' && 'Purchase Confirmation'}
                     </Modal.Title>
                 </Modal.Header>
@@ -298,19 +364,21 @@ const EventDetailPage = () => {
                                 <strong>Price per Ticket:</strong> ${selectedTier?.price?.toFixed(2)}
                             </p>
 
-                            <Form.Group className="mb-3">
-                                <Form.Label>Quantity</Form.Label>
-                                <Form.Control
-                                    type="number"
-                                    min="1"
-                                    max={selectedTier?.available}
+                            <div className="mb-3">
+                                <label className="form-label">Quantity</label>
+                                <select
+                                    className="form-select"
                                     value={quantity}
                                     onChange={(e) => setQuantity(parseInt(e.target.value))}
-                                />
-                                <Form.Text className="text-muted">
+                                >
+                                    {[...Array(Math.min(selectedTier?.available || 1, 10))].map((_, i) => (
+                                        <option key={i + 1} value={i + 1}>{i + 1}</option>
+                                    ))}
+                                </select>
+                                <div className="form-text">
                                     Maximum available: {selectedTier?.available}
-                                </Form.Text>
-                            </Form.Group>
+                                </div>
+                            </div>
 
                             <hr />
 
@@ -318,22 +386,28 @@ const EventDetailPage = () => {
                                 <span>Subtotal:</span>
                                 <span>${(selectedTier?.price * quantity).toFixed(2)}</span>
                             </div>
-                            <div className="d-flex justify-content-between">
-                                <span>Service Fee:</span>
-                                <span>${(selectedTier?.price * quantity * 0.05).toFixed(2)}</span>
-                            </div>
                             <div className="d-flex justify-content-between mt-2">
                                 <strong>Total:</strong>
-                                <strong>${(selectedTier?.price * quantity * 1.05).toFixed(2)}</strong>
+                                <strong>${(selectedTier?.price * quantity).toFixed(2)}</strong>
                             </div>
+                            <small className="text-muted mt-2 d-block">
+                                * Processing fees may apply for credit card payments
+                            </small>
                         </>
                     )}
 
                     {purchaseStep === 'payment' && selectedTier && (
-                        <PaymentForm
-                            amount={selectedTier.price * quantity * 1.05}
+                        <EnhancedPaymentForm
+                            amount={selectedTier.price * quantity}
                             onPaymentComplete={handlePaymentComplete}
                             onCancel={() => setPurchaseStep('select')}
+                            ticketDetails={{
+                                eventName: event.name,
+                                eventDate: formatDate(event.eventDate),
+                                venue: `${event.venue?.name}, ${event.venue?.city}`,
+                                section: selectedTier.sectionId,
+                                quantity: quantity
+                            }}
                         />
                     )}
 
@@ -355,7 +429,7 @@ const EventDetailPage = () => {
                             onClick={handlePurchaseConfirm}
                             disabled={purchaseLoading}
                         >
-                            {purchaseLoading ? 'Processing...' : 'Proceed to Payment'}
+                            {purchaseLoading ? 'Processing...' : 'Choose Payment Method'}
                         </Button>
                     </Modal.Footer>
                 )}

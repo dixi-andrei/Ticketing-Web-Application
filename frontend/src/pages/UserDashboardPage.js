@@ -1,6 +1,6 @@
-import { cancelListing } from '../api/listingApi';// src/pages/UserDashboardPage.js
+// src/pages/UserDashboardPage.js
 import React, { useState, useEffect, useContext } from 'react';
-import { Container, Row, Col, Card, Tab, Nav, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Tab, Nav, Badge, Button, Alert, Spinner, Modal, Form } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import {
     getMyTickets,
@@ -11,12 +11,17 @@ import {
     getMyTotalPurchases,
     getMyTotalSales
 } from '../api/userApi';
+import { getCurrentBalance, getBalanceHistory } from '../api/userBalanceApi';
+import { cancelListing } from '../api/listingApi';
+import { canTicketBeResold } from '../api/ticketApi';
 import AuthContext from '../contexts/AuthContext';
 import TicketResellForm from '../components/tickets/TicketResellForm';
 import TicketDetail from '../components/tickets/TicketDetail';
+import ProfileEditModal from '../components/user/ProfileEditModal';
+import BalanceHistoryModal from '../components/user/BalanceHistoryModal';
 
 const UserDashboardPage = () => {
-    const { currentUser } = useContext(AuthContext);
+    const { currentUser, updateUserProfile } = useContext(AuthContext);
     const location = useLocation();
 
     // Get active tab from location state or default to 'upcoming'
@@ -24,6 +29,7 @@ const UserDashboardPage = () => {
     const [activeTab, setActiveTab] = useState(defaultActiveTab);
     const [activeSubTab, setActiveSubTab] = useState('purchases');
 
+    // Data states
     const [tickets, setTickets] = useState([]);
     const [upcomingTickets, setUpcomingTickets] = useState([]);
     const [listings, setListings] = useState([]);
@@ -31,12 +37,16 @@ const UserDashboardPage = () => {
     const [sales, setSales] = useState([]);
     const [totalPurchases, setTotalPurchases] = useState(0);
     const [totalSales, setTotalSales] = useState(0);
+    const [userBalance, setUserBalance] = useState(0);
+    const [balanceHistory, setBalanceHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // State for ticket actions
+    // Modal states
     const [showResellForm, setShowResellForm] = useState(false);
     const [showTicketDetail, setShowTicketDetail] = useState(false);
+    const [showProfileEdit, setShowProfileEdit] = useState(false);
+    const [showBalanceHistory, setShowBalanceHistory] = useState(false);
     const [selectedTicket, setSelectedTicket] = useState(null);
 
     // Functions for ticket actions
@@ -72,7 +82,14 @@ const UserDashboardPage = () => {
         }
     };
 
-    // In your fetchUserData function in UserDashboardPage.js
+    const handleProfileUpdate = (updatedProfile) => {
+        updateUserProfile(updatedProfile);
+        setShowProfileEdit(false);
+        // You might want to show a success message here
+        alert('Profile updated successfully!');
+    };
+
+    // Fetch user data including balance
     const fetchUserData = async () => {
         try {
             setLoading(true);
@@ -86,7 +103,9 @@ const UserDashboardPage = () => {
                 purchasesRes,
                 salesRes,
                 totalPurchasesRes,
-                totalSalesRes
+                totalSalesRes,
+                balanceRes,
+                balanceHistoryRes
             ] = await Promise.all([
                 getMyTickets().catch(() => ({ data: [] })),
                 getMyUpcomingTickets().catch(() => ({ data: [] })),
@@ -94,7 +113,9 @@ const UserDashboardPage = () => {
                 getMyPurchases().catch(() => ({ data: [] })),
                 getMySales().catch(() => ({ data: [] })),
                 getMyTotalPurchases().catch(() => ({ data: { total: 0 } })),
-                getMyTotalSales().catch(() => ({ data: { total: 0 } }))
+                getMyTotalSales().catch(() => ({ data: { total: 0 } })),
+                getCurrentBalance().catch(() => ({ data: { balance: 0 } })),
+                getBalanceHistory().catch(() => ({ data: [] }))
             ]);
 
             // Ensure all data is properly formatted as arrays
@@ -105,6 +126,8 @@ const UserDashboardPage = () => {
             setSales(Array.isArray(salesRes.data) ? salesRes.data : []);
             setTotalPurchases(totalPurchasesRes.data?.total || 0);
             setTotalSales(totalSalesRes.data?.total || 0);
+            setUserBalance(balanceRes.data?.balance || 0);
+            setBalanceHistory(Array.isArray(balanceHistoryRes.data) ? balanceHistoryRes.data : []);
 
             setLoading(false);
         } catch (err) {
@@ -162,65 +185,27 @@ const UserDashboardPage = () => {
             }
         ];
 
-        // Mock listings data
-        const mockListings = [
+        // Mock balance data
+        const mockBalanceHistory = [
             {
                 id: 1,
-                ticket: {
-                    id: 3,
-                    ticketNumber: "TKT-24680",
-                    event: {
-                        id: 103,
-                        name: "Comedy Night",
-                        eventDate: "2025-06-05T20:00:00"
-                    },
-                    originalPrice: 80.00
-                },
-                askingPrice: 75.00,
-                status: "ACTIVE",
-                listingDate: "2025-05-12T11:20:00"
-            }
-        ];
-
-        // Mock transactions data
-        const mockTransactions = [
-            {
-                id: 1,
-                transactionNumber: "TRX-12345",
-                amount: 150.00,
-                status: "COMPLETED",
-                type: "PRIMARY_PURCHASE",
-                transactionDate: "2025-05-05T14:30:00",
-                ticket: {
-                    id: 1,
-                    event: {
-                        name: "Summer Music Festival"
-                    }
-                }
-            },
-            {
-                id: 2,
-                transactionNumber: "TRX-67890",
-                amount: 100.00,
-                status: "COMPLETED",
-                type: "PRIMARY_PURCHASE",
-                transactionDate: "2025-05-10T09:15:00",
-                ticket: {
-                    id: 2,
-                    event: {
-                        name: "Basketball Championship"
-                    }
-                }
+                amount: 75.00,
+                type: "CREDIT",
+                description: "Payment for ticket TKT-24680",
+                transactionDate: "2025-05-12T11:20:00",
+                referenceType: "Transaction"
             }
         ];
 
         setTickets(mockTickets);
         setUpcomingTickets(mockTickets);
-        setListings(mockListings);
-        setPurchases(mockTransactions);
+        setListings([]);
+        setPurchases([]);
         setSales([]);
         setTotalPurchases(250.00);
-        setTotalSales(0);
+        setTotalSales(75.00);
+        setUserBalance(75.00);
+        setBalanceHistory(mockBalanceHistory);
     };
 
     useEffect(() => {
@@ -279,7 +264,7 @@ const UserDashboardPage = () => {
         <Container className="py-5">
             <h1 className="mb-4">My Dashboard</h1>
 
-            {/* User Profile Summary */}
+            {/* User Profile Summary with Balance */}
             <Row className="mb-4">
                 <Col>
                     <Card className="shadow-sm">
@@ -289,18 +274,41 @@ const UserDashboardPage = () => {
                                     <div className="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{ width: '80px', height: '80px' }}>
                                         <span className="fs-1">{getInitials(currentUser?.firstName, currentUser?.lastName)}</span>
                                     </div>
+                                    <div className="mt-2">
+                                        <Button variant="outline-primary" size="sm" onClick={() => setShowProfileEdit(true)}>
+                                            Edit Profile
+                                        </Button>
+                                    </div>
                                 </Col>
-                                <Col md={7}>
+                                <Col md={5}>
                                     <h3>{currentUser?.firstName} {currentUser?.lastName}</h3>
                                     <p className="text-muted">{currentUser?.email}</p>
-                                </Col>
-                                <Col md={3} className="d-flex flex-column justify-content-center">
                                     <div className="mb-2">
                                         <span className="fw-bold">Total Purchased:</span> {formatCurrency(totalPurchases)}
                                     </div>
                                     <div>
                                         <span className="fw-bold">Total Sales:</span> {formatCurrency(totalSales)}
                                     </div>
+                                </Col>
+                                <Col md={5}>
+                                    <Card className="bg-success text-white">
+                                        <Card.Body className="text-center">
+                                            <h5 className="mb-1">Account Balance</h5>
+                                            <h2 className="mb-2">{formatCurrency(userBalance)}</h2>
+                                            <Button
+                                                variant="light"
+                                                size="sm"
+                                                onClick={() => setShowBalanceHistory(true)}
+                                            >
+                                                View History
+                                            </Button>
+                                            {userBalance > 0 && (
+                                                <div className="mt-2">
+                                                    <small>Available for ticket purchases</small>
+                                                </div>
+                                            )}
+                                        </Card.Body>
+                                    </Card>
                                 </Col>
                             </Row>
                         </Card.Body>
@@ -326,6 +334,9 @@ const UserDashboardPage = () => {
                                     </Nav.Item>
                                     <Nav.Item>
                                         <Nav.Link eventKey="transactions">Transactions</Nav.Link>
+                                    </Nav.Item>
+                                    <Nav.Item>
+                                        <Nav.Link eventKey="balance">Balance Activity</Nav.Link>
                                     </Nav.Item>
                                 </Nav>
                             </Card.Header>
@@ -379,7 +390,7 @@ const UserDashboardPage = () => {
                                                                     >
                                                                         View Ticket
                                                                     </Button>
-                                                                    {ticket.status !== "LISTED" && (
+                                                                    {ticket.status === "PURCHASED" && (
                                                                         <Button
                                                                             variant="outline-success"
                                                                             size="sm"
@@ -494,6 +505,11 @@ const UserDashboardPage = () => {
                                                                             Cancel
                                                                         </Button>
                                                                     )}
+                                                                    {listing.status === "SOLD" && (
+                                                                        <Badge bg="success">
+                                                                            Sold - Money added to balance
+                                                                        </Badge>
+                                                                    )}
                                                                 </td>
                                                             </tr>
                                                         ))}
@@ -543,6 +559,7 @@ const UserDashboardPage = () => {
                                                                     <th>Event</th>
                                                                     <th>Amount</th>
                                                                     <th>Status</th>
+                                                                    <th>Payment Method</th>
                                                                 </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -556,6 +573,12 @@ const UserDashboardPage = () => {
                                                                             <Badge bg={getStatusBadgeColor(transaction.status)}>
                                                                                 {transaction.status}
                                                                             </Badge>
+                                                                        </td>
+                                                                        <td>
+                                                                            {transaction.paymentIntentId?.includes('BALANCE') ?
+                                                                                <Badge bg="info">Account Balance</Badge> :
+                                                                                <Badge bg="primary">Credit Card</Badge>
+                                                                            }
                                                                         </td>
                                                                     </tr>
                                                                 ))}
@@ -610,6 +633,53 @@ const UserDashboardPage = () => {
                                                 </>
                                             )}
                                         </Tab.Pane>
+
+                                        {/* Balance Activity Tab */}
+                                        <Tab.Pane eventKey="balance">
+                                            <div className="mb-3">
+                                                <h4>Current Balance: {formatCurrency(userBalance)}</h4>
+                                                {userBalance > 0 && (
+                                                    <Alert variant="success">
+                                                        You can use your balance to purchase tickets without using a credit card!
+                                                    </Alert>
+                                                )}
+                                            </div>
+
+                                            {balanceHistory && balanceHistory.length > 0 ? (
+                                                <div className="table-responsive">
+                                                    <table className="table table-hover">
+                                                        <thead>
+                                                        <tr>
+                                                            <th>Date</th>
+                                                            <th>Type</th>
+                                                            <th>Amount</th>
+                                                            <th>Description</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        {balanceHistory.map((transaction) => (
+                                                            <tr key={transaction.id}>
+                                                                <td>{formatDate(transaction.transactionDate)}</td>
+                                                                <td>
+                                                                    <Badge bg={transaction.type === 'CREDIT' ? 'success' : 'warning'}>
+                                                                        {transaction.type === 'CREDIT' ? 'Money In' : 'Money Out'}
+                                                                    </Badge>
+                                                                </td>
+                                                                <td className={transaction.type === 'CREDIT' ? 'text-success' : 'text-warning'}>
+                                                                    {transaction.type === 'CREDIT' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                                                </td>
+                                                                <td>{transaction.description}</td>
+                                                            </tr>
+                                                        ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ) : (
+                                                <Alert variant="info">
+                                                    No balance activity yet. Sell tickets to add money to your balance!
+                                                </Alert>
+                                            )}
+                                        </Tab.Pane>
                                     </Tab.Content>
                                 )}
                             </Card.Body>
@@ -631,6 +701,22 @@ const UserDashboardPage = () => {
                 <TicketDetail
                     ticket={selectedTicket}
                     onClose={() => setShowTicketDetail(false)}
+                />
+            )}
+
+            {showProfileEdit && (
+                <ProfileEditModal
+                    user={currentUser}
+                    onClose={() => setShowProfileEdit(false)}
+                    onSave={handleProfileUpdate}
+                />
+            )}
+
+            {showBalanceHistory && (
+                <BalanceHistoryModal
+                    balance={userBalance}
+                    history={balanceHistory}
+                    onClose={() => setShowBalanceHistory(false)}
                 />
             )}
         </Container>

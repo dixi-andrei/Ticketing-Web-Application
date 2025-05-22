@@ -63,6 +63,10 @@ export const markTicketAsUsed = (id) => {
     return axiosInstance.post(`${API_URL}/${id}/use`);
 };
 
+export const canTicketBeResold = (ticketId) => {
+    return axiosInstance.get(`/tickets/${ticketId}/can-resell`);
+};
+
 // Generate batch tickets
 export const generateBatchTickets = (eventId, pricingTierId, quantity, options = {}) => {
     return axiosInstance.post(`${API_URL}/batch`, null, {
@@ -73,4 +77,6 @@ export const generateBatchTickets = (eventId, pricingTierId, quantity, options =
             ...options
         }
     });
+
+
 };

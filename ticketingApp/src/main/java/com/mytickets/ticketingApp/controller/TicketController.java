@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -306,6 +307,58 @@ public class TicketController {
     public ResponseEntity<HttpStatus> deleteTicket(@PathVariable Long id) {
         ticketService.deleteTicket(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @GetMapping("/{id}/can-resell")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> canTicketBeResold(@PathVariable Long id) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+
+        try {
+            // First check if user owns the ticket
+            Optional<Ticket> ticketOpt = ticketService.getTicketById(id);
+            if (ticketOpt.isEmpty()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("canResell", false);
+                response.put("reason", "Ticket not found");
+                return ResponseEntity.ok(response);
+            }
+
+            Ticket ticket = ticketOpt.get();
+
+            // Check if user owns the ticket
+            if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(userDetails.getId())) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("canResell", false);
+                response.put("reason", "You do not own this ticket");
+                return ResponseEntity.ok(response);
+            }
+
+            boolean canResell = ticketService.canTicketBeResold(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("canResell", canResell);
+
+            if (!canResell) {
+                // Provide specific reason why it can't be resold
+                if (ticket.getStatus() == TicketStatus.LISTED) {
+                    response.put("reason", "Ticket is already listed for sale");
+                } else if (ticket.getStatus() == TicketStatus.RESOLD) {
+                    response.put("reason", "Ticket has already been resold");
+                } else if (ticket.getEvent().getEventDate().isBefore(LocalDateTime.now())) {
+                    response.put("reason", "Event has already occurred");
+                } else {
+                    response.put("reason", "Ticket cannot be resold at this time");
+                }
+            }
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("canResell", false);
+            response.put("reason", e.getMessage());
+            return ResponseEntity.ok(response);
+        }
     }
 
     @PostMapping("/{id}/purchase")

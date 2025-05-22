@@ -1,11 +1,13 @@
-// src/pages/ResaleMarketplacePage.js
+// src/pages/ResaleMarketplacePage.js - Updated with enhanced payment options
 import React, { useState, useEffect, useContext } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Alert, Spinner, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { getAllListings, getListingsByEvent, purchaseListing } from '../api/listingApi';
 import { getAllEvents } from '../api/eventApi';
+import { processPaymentWithBalance, processPayment, createListingPurchaseTransaction } from '../api/transactionApi';
 import AuthContext from '../contexts/AuthContext';
-import PaymentForm from '../components/tickets/PaymentForm';
+import EnhancedPaymentForm from '../components/tickets/EnhancedPaymentForm';
+import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
 
 const ResaleMarketplacePage = () => {
     const { isAuthenticated } = useContext(AuthContext);
@@ -25,24 +27,27 @@ const ResaleMarketplacePage = () => {
     // Purchase states
     const [purchaseInProgress, setPurchaseInProgress] = useState(false);
     const [purchaseError, setPurchaseError] = useState('');
-    const [purchaseSuccess, setPurchaseSuccess] = useState(false);
     const [selectedListing, setSelectedListing] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [purchaseStep, setPurchaseStep] = useState('confirm'); // 'confirm', 'payment', 'success'
+    const [purchaseDetails, setPurchaseDetails] = useState(null);
+    const [currentTransaction, setCurrentTransaction] = useState(null);
 
     useEffect(() => {
         fetchData();
     }, []);
-
-    // In src/pages/ResaleMarketplacePage.js
 
     const fetchData = async () => {
         try {
             setLoading(true);
             setError('');
 
-            // Use Promise.all to fetch all data concurrently
-            const listingsResponse = await getAllListings();
+            // Fetch listings and events
+            const [listingsResponse, eventsResponse] = await Promise.all([
+                getAllListings(),
+                getAllEvents()
+            ]);
 
             // Important: Only show ACTIVE listings
             let activeListings = Array.isArray(listingsResponse.data)
@@ -50,8 +55,7 @@ const ResaleMarketplacePage = () => {
                 : [];
 
             setListings(activeListings);
-
-            // Rest of your fetch code...
+            setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
 
             setLoading(false);
         } catch (err) {
@@ -65,14 +69,78 @@ const ResaleMarketplacePage = () => {
     };
 
     const setMockData = () => {
-        // Mock listings (your existing mock data)
+        // Mock listings
         const mockListings = [
-            // Your existing mock data
+            {
+                id: 1,
+                askingPrice: 75.00,
+                description: "Can't make the event, selling at a discount",
+                listingDate: "2025-05-10T14:30:00",
+                status: "ACTIVE",
+                ticket: {
+                    id: 101,
+                    ticketNumber: "TKT-12345",
+                    originalPrice: 85.00,
+                    section: "A",
+                    row: "10",
+                    seat: "15",
+                    event: {
+                        id: 1,
+                        name: "Summer Music Festival",
+                        eventDate: "2025-07-15T18:00:00",
+                        venue: {
+                            name: "Central Park",
+                            city: "New York"
+                        }
+                    }
+                },
+                seller: {
+                    firstName: "John",
+                    lastName: "Doe"
+                }
+            },
+            {
+                id: 2,
+                askingPrice: 120.00,
+                description: "Great seat, but can't attend",
+                listingDate: "2025-05-12T10:15:00",
+                status: "ACTIVE",
+                ticket: {
+                    id: 102,
+                    ticketNumber: "TKT-67890",
+                    originalPrice: 150.00,
+                    section: "VIP",
+                    row: "2",
+                    seat: "8",
+                    event: {
+                        id: 2,
+                        name: "Basketball Championship",
+                        eventDate: "2025-06-20T19:30:00",
+                        venue: {
+                            name: "Sports Arena",
+                            city: "Los Angeles"
+                        }
+                    }
+                },
+                seller: {
+                    firstName: "Jane",
+                    lastName: "Smith"
+                }
+            }
         ];
 
         // Mock events
         const mockEvents = [
-            // Your existing mock data
+            {
+                id: 1,
+                name: "Summer Music Festival",
+                eventDate: "2025-07-15T18:00:00"
+            },
+            {
+                id: 2,
+                name: "Basketball Championship",
+                eventDate: "2025-06-20T19:30:00"
+            }
         ];
 
         setListings(mockListings);
@@ -85,7 +153,10 @@ const ResaleMarketplacePage = () => {
             // If no event selected, show all listings
             try {
                 const response = await getAllListings();
-                setListings(Array.isArray(response.data) ? response.data : []);
+                const activeListings = Array.isArray(response.data)
+                    ? response.data.filter(listing => listing.status === "ACTIVE")
+                    : [];
+                setListings(activeListings);
             } catch (err) {
                 console.error('Error fetching all listings:', err);
                 setError('Failed to load listings. Please try again.');
@@ -104,9 +175,6 @@ const ResaleMarketplacePage = () => {
 
     const handleSearch = () => {
         // Filter listings based on price range and search term
-        // This is client-side filtering for simplicity
-
-        // Make sure listings is an array before filtering
         let filteredListings = Array.isArray(listings) ? [...listings] : [];
 
         // Filter by price range
@@ -122,7 +190,7 @@ const ResaleMarketplacePage = () => {
             );
         }
 
-        // Filter by search term (event name, venue, etc.)
+        // Filter by search term
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             filteredListings = filteredListings.filter(listing =>
@@ -142,10 +210,10 @@ const ResaleMarketplacePage = () => {
         }
 
         setSelectedListing(listing);
+        setPurchaseStep('confirm');
         setShowConfirmModal(true);
         setPurchaseError('');
-        setShowPaymentForm(false);  // Reset payment form visibility
-        setPurchaseSuccess(false);  // Reset success state
+        setShowPaymentForm(false);
     };
 
     const handlePurchaseConfirm = async () => {
@@ -153,50 +221,104 @@ const ResaleMarketplacePage = () => {
             setPurchaseInProgress(true);
             setPurchaseError('');
 
-            // Call API to purchase the listing
-            await purchaseListing(selectedListing.id);
+            // Create a transaction for the listing purchase
+            // In a real implementation, you'd call your API to create a pending transaction
+            const mockTransaction = {
+                id: Math.floor(Math.random() * 10000),
+                amount: selectedListing.askingPrice,
+                status: 'PENDING',
+                listing: selectedListing,
+                ticket: selectedListing.ticket
+            };
 
-            setPurchaseSuccess(true);
+            setCurrentTransaction(mockTransaction);
+            setPurchaseStep('payment');
+            setShowPaymentForm(true);
             setPurchaseInProgress(false);
-
-            // Important: Refresh the listings data after purchase
-            fetchData(); // This will update the listings array
-
-            // Close modal after success
-            setTimeout(() => {
-                setShowConfirmModal(false);
-                // Redirect to dashboard to see the purchased ticket
-                navigate('/dashboard', { state: { activeTab: 'tickets' } });
-            }, 2000);
-
-        } catch (err) {
-            console.error('Error purchasing ticket:', err);
-            setPurchaseError(err.response?.data?.message || 'Failed to purchase ticket. Please try again.');
+        } catch (error) {
+            console.error('Error creating transaction:', error);
+            setPurchaseError('Failed to initiate purchase. Please try again.');
             setPurchaseInProgress(false);
         }
     };
 
-    const completePurchaseWithPayment = async (listingId, paymentDetails) => {
+    const handlePaymentComplete = async (paymentInfo) => {
         try {
-            // Call API to purchase the listing with payment details
-            await purchaseListing(listingId);
+            setPurchaseInProgress(true);
 
-            setPurchaseSuccess(true);
-            setPurchaseInProgress(false);
+            let transactionResult;
 
-            // Refresh listings after purchase
+            if (paymentInfo.paymentMethod === 'balance') {
+                // Process balance payment
+                transactionResult = await processPaymentWithBalance(currentTransaction.id);
+
+                // Update local state to reflect balance usage
+                const transactionDetails = {
+                    transactionId: transactionResult.data?.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
+                    eventName: selectedListing.ticket.event.name,
+                    ticketNumber: selectedListing.ticket.ticketNumber,
+                    section: selectedListing.ticket.section,
+                    row: selectedListing.ticket.row,
+                    seat: selectedListing.ticket.seat,
+                    totalAmount: selectedListing.askingPrice,
+                    paymentMethod: 'Account Balance',
+                    balanceUsed: paymentInfo.balanceUsed,
+                    newBalance: paymentInfo.newBalance,
+                    purchaseDate: new Date().toISOString(),
+                    seller: selectedListing.seller
+                };
+
+                setPurchaseDetails(transactionDetails);
+            } else {
+                // Process credit card payment
+                transactionResult = await processPayment(
+                    currentTransaction.id,
+                    'credit_card',
+                    JSON.stringify(paymentInfo.billingInfo)
+                );
+
+                const transactionDetails = {
+                    transactionId: paymentInfo.paymentId,
+                    eventName: selectedListing.ticket.event.name,
+                    ticketNumber: selectedListing.ticket.ticketNumber,
+                    section: selectedListing.ticket.section,
+                    row: selectedListing.ticket.row,
+                    seat: selectedListing.ticket.seat,
+                    totalAmount: selectedListing.askingPrice * 1.029, // Include processing fee
+                    paymentMethod: 'Credit Card',
+                    lastFour: paymentInfo.lastFour,
+                    purchaseDate: new Date().toISOString(),
+                    seller: selectedListing.seller
+                };
+
+                setPurchaseDetails(transactionDetails);
+            }
+
+            // Call the actual purchase API
+            await purchaseListing(selectedListing.id);
+
+            setPurchaseStep('success');
+
+            // Refresh listings after successful purchase
             fetchData();
 
-            // Close modal after success
-            setTimeout(() => {
-                setShowConfirmModal(false);
-                navigate('/dashboard', { state: { activeTab: 'tickets' } });
-            }, 2000);
-        } catch (err) {
-            console.error('Error completing purchase:', err);
-            setPurchaseError(err.response?.data?.message || 'Failed to complete purchase. Please try again.');
+            setPurchaseInProgress(false);
+        } catch (error) {
+            console.error('Payment processing error:', error);
+            setPurchaseError(error.response?.data?.message || 'Payment processing failed. Please try again.');
             setPurchaseInProgress(false);
         }
+    };
+
+    const resetPurchaseModal = () => {
+        setPurchaseStep('confirm');
+        setPurchaseDetails(null);
+        setCurrentTransaction(null);
+        setPurchaseError('');
+        setShowConfirmModal(false);
+        setShowPaymentForm(false);
+        setPurchaseInProgress(false);
+        setSelectedListing(null);
     };
 
     const formatDate = (dateString) => {
@@ -369,7 +491,7 @@ const ResaleMarketplacePage = () => {
                                     </div>
                                 </Card.Body>
                                 <Card.Footer className="text-muted text-center">
-                                    <small>Sold by {listing.seller.firstName} {listing.seller.lastName.charAt(0)}</small>
+                                    <small>Sold by {listing.seller.firstName} {listing.seller.lastName.charAt(0)}.</small>
                                 </Card.Footer>
                             </Card>
                         </Col>
@@ -377,74 +499,101 @@ const ResaleMarketplacePage = () => {
                 </Row>
             )}
 
-            {/* Purchase Confirmation Modal */}
-            <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)} centered>
+            {/* Purchase Modal */}
+            <Modal
+                show={showConfirmModal}
+                onHide={resetPurchaseModal}
+                centered
+                size={purchaseStep === 'payment' ? 'lg' : 'md'}
+            >
                 <Modal.Header closeButton>
-                    <Modal.Title>Confirm Purchase</Modal.Title>
+                    <Modal.Title>
+                        {purchaseStep === 'confirm' && 'Confirm Purchase'}
+                        {purchaseStep === 'payment' && 'Choose Payment Method'}
+                        {purchaseStep === 'success' && 'Purchase Successful'}
+                    </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    {purchaseSuccess ? (
-                        <Alert variant="success">
-                            <Alert.Heading>Purchase Successful!</Alert.Heading>
-                            <p>Your ticket has been purchased successfully. You can view it in your dashboard.</p>
-                        </Alert>
-                    ) : (
+                    {purchaseStep === 'confirm' && selectedListing && (
                         <>
                             {purchaseError && <Alert variant="danger">{purchaseError}</Alert>}
 
-                            {selectedListing && !showPaymentForm && (
-                                <>
-                                    <h5>{selectedListing.ticket.event.name}</h5>
-                                    <p className="text-muted mb-1">{formatDate(selectedListing.ticket.event.eventDate)}</p>
-                                    <p className="mb-3">
-                                        {selectedListing.ticket.event.venue.name}, {selectedListing.ticket.event.venue.city}
+                            <h5>{selectedListing.ticket.event.name}</h5>
+                            <p className="text-muted mb-1">{formatDate(selectedListing.ticket.event.eventDate)}</p>
+                            <p className="mb-3">
+                                {selectedListing.ticket.event.venue.name}, {selectedListing.ticket.event.venue.city}
+                            </p>
+
+                            <Row className="mb-3">
+                                <Col>
+                                    <p>
+                                        <strong>Section:</strong> {selectedListing.ticket.section || 'N/A'}<br />
+                                        <strong>Row:</strong> {selectedListing.ticket.row || 'N/A'}<br />
+                                        <strong>Seat:</strong> {selectedListing.ticket.seat || 'N/A'}
                                     </p>
-
-                                    <Row className="mb-3">
-                                        <Col>
-                                            <p>
-                                                <strong>Section:</strong> {selectedListing.ticket.section || 'N/A'}<br />
-                                                <strong>Row:</strong> {selectedListing.ticket.row || 'N/A'}<br />
-                                                <strong>Seat:</strong> {selectedListing.ticket.seat || 'N/A'}
-                                            </p>
-                                        </Col>
-                                        <Col className="text-end">
-                                            <p className="text-muted mb-0">
-                                                <small>Original price: {formatCurrency(selectedListing.ticket.originalPrice)}</small>
-                                            </p>
-                                            <h4 className="text-primary mb-0">{formatCurrency(selectedListing.askingPrice)}</h4>
-                                        </Col>
-                                    </Row>
-
-                                    <Alert variant="info">
-                                        <strong>Fair Price Guarantee:</strong> This ticket is being sold at or below its original purchase price.
-                                    </Alert>
-
-                                    <p className="text-center">
-                                        Are you sure you want to purchase this ticket?
+                                </Col>
+                                <Col className="text-end">
+                                    <p className="text-muted mb-0">
+                                        <small>Original price: {formatCurrency(selectedListing.ticket.originalPrice)}</small>
                                     </p>
-                                </>
-                            )}
+                                    <h4 className="text-primary mb-0">{formatCurrency(selectedListing.askingPrice)}</h4>
+                                </Col>
+                            </Row>
 
-                            {showPaymentForm && selectedListing && (
-                                <PaymentForm
-                                    amount={selectedListing.askingPrice}
-                                    onPaymentComplete={(paymentDetails) => {
-                                        // Now complete the purchase with payment info
-                                        completePurchaseWithPayment(selectedListing.id, paymentDetails);
-                                    }}
-                                    onCancel={() => {
-                                        setShowPaymentForm(false);
-                                        setPurchaseInProgress(false);
-                                    }}
-                                />
-                            )}
+                            <Alert variant="info">
+                                <strong>Fair Price Guarantee:</strong> This ticket is being sold at or below its original purchase price.
+                            </Alert>
+
+                            <Alert variant="success">
+                                <strong>💰 Payment Options Available:</strong>
+                                <ul className="mb-0 mt-2">
+                                    <li>Pay with your account balance (no processing fees)</li>
+                                    <li>Pay with credit card (small processing fee applies)</li>
+                                </ul>
+                            </Alert>
+
+                            <p className="text-center">
+                                Are you sure you want to purchase this ticket?
+                            </p>
                         </>
                     )}
+
+                    {purchaseStep === 'payment' && selectedListing && (
+                        <EnhancedPaymentForm
+                            amount={selectedListing.askingPrice}
+                            onPaymentComplete={handlePaymentComplete}
+                            onCancel={() => setPurchaseStep('confirm')}
+                            ticketDetails={{
+                                eventName: selectedListing.ticket.event.name,
+                                eventDate: formatDate(selectedListing.ticket.event.eventDate),
+                                venue: `${selectedListing.ticket.event.venue.name}, ${selectedListing.ticket.event.venue.city}`,
+                                section: selectedListing.ticket.section,
+                                row: selectedListing.ticket.row,
+                                seat: selectedListing.ticket.seat,
+                                seller: `${selectedListing.seller.firstName} ${selectedListing.seller.lastName.charAt(0)}.`
+                            }}
+                        />
+                    )}
+
+                    {purchaseStep === 'success' && purchaseDetails && (
+                        <PurchaseConfirmation
+                            purchaseDetails={{
+                                ...purchaseDetails,
+                                eventName: purchaseDetails.eventName,
+                                quantity: 1,
+                                totalAmount: purchaseDetails.totalAmount,
+                                paymentMethod: purchaseDetails.paymentMethod,
+                                lastFour: purchaseDetails.lastFour,
+                                transactionId: purchaseDetails.transactionId
+                            }}
+                            onClose={resetPurchaseModal}
+                        />
+                    )}
                 </Modal.Body>
-                {!purchaseSuccess && !showPaymentForm && (
+
+                {purchaseStep === 'confirm' && (
                     <Modal.Footer>
-                        <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
+                        <Button variant="secondary" onClick={resetPurchaseModal}>
                             Cancel
                         </Button>
                         <Button
@@ -452,7 +601,7 @@ const ResaleMarketplacePage = () => {
                             onClick={handlePurchaseConfirm}
                             disabled={purchaseInProgress}
                         >
-                            {purchaseInProgress ? 'Processing...' : 'Proceed to Payment'}
+                            {purchaseInProgress ? 'Processing...' : 'Choose Payment Method'}
                         </Button>
                     </Modal.Footer>
                 )}

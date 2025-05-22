@@ -22,4 +22,5 @@ public interface TicketService {
     String generateQRCode(Long ticketId);
     boolean validateTicket(String ticketNumber);
     void markTicketAsUsed(Long ticketId);
+    public boolean canTicketBeResold(Long ticketId);
 }
