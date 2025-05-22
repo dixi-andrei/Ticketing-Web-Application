@@ -5,6 +5,7 @@ import com.mytickets.ticketingApp.repository.TicketListingRepository;
 import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.repository.TransactionRepository;
 import com.mytickets.ticketingApp.repository.UserRepository;
+import com.mytickets.ticketingApp.service.EmailService;
 import com.mytickets.ticketingApp.service.TransactionService;
 import com.mytickets.ticketingApp.service.UserBalanceService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,13 +28,14 @@ public class TransactionServiceImpl implements TransactionService {
     @Autowired
     private UserRepository userRepository;
 
-    // Add these methods to your TransactionServiceImpl class
-
     @Autowired
     private TicketRepository ticketRepository;
 
     @Autowired
     private TicketListingRepository ticketListingRepository;
+
+    @Autowired
+    private EmailService emailService;
 
     @Override
     @Transactional
@@ -234,19 +236,10 @@ public class TransactionServiceImpl implements TransactionService {
         ticket.setStatus(TicketStatus.RESOLD);
         ticket.setPurchaseDate(LocalDateTime.now());
 
-        // Add money to seller's balance
-        userBalanceService.addToBalance(
-                seller.getId(),
-                transaction.getAmount(),
-                "Payment for ticket " + ticket.getTicketNumber(),
-                "Transaction",
-                transaction.getId()
-        );
-
+        // For secondary purchases, the seller balance is handled in the payment processing methods
         ticketListingRepository.save(listing);
         ticketRepository.save(ticket);
     }
-
 
     @Override
     @Transactional
@@ -297,7 +290,26 @@ public class TransactionServiceImpl implements TransactionService {
             transaction.setStatus(TransactionStatus.COMPLETED);
             transaction.setPaymentIntentId("BALANCE_PAYMENT_" + System.currentTimeMillis());
 
+            // Complete the purchase process
+            if (transaction.getType() == TransactionType.PRIMARY_PURCHASE) {
+                completeTicketPurchase(transaction);
+            } else {
+                completeListingPurchase(transaction);
+            }
+
             Transaction savedTransaction = transactionRepository.save(transaction);
+
+            // Send email notifications
+            try {
+                emailService.sendPurchaseConfirmationEmail(buyer, savedTransaction);
+
+                if (transaction.getSeller() != null && transaction.getType() == TransactionType.SECONDARY_PURCHASE) {
+                    emailService.sendSaleNotificationEmail(transaction.getSeller(), savedTransaction);
+                }
+            } catch (Exception emailError) {
+                // Log email error but don't fail the transaction
+                System.err.println("Failed to send email notification: " + emailError.getMessage());
+            }
 
             // Log for debugging
             System.out.println("Balance payment completed for transaction: " + savedTransaction.getId());
@@ -313,19 +325,47 @@ public class TransactionServiceImpl implements TransactionService {
         }
     }
 
-
     @Override
     @Transactional
     public Transaction processPayment(Long transactionId, String paymentMethod, String paymentDetails) {
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found with id: " + transactionId));
 
-        // In a real application, this would integrate with a payment gateway
-        // For now, we'll just update the status
-        transaction.setStatus(TransactionStatus.COMPLETED);
-        transaction.setPaymentIntentId("PAYMENT_" + paymentMethod + "_" + System.currentTimeMillis());
+        try {
+            // In a real application, this would integrate with a payment gateway
+            // For now, we'll simulate successful payment processing
+            transaction.setStatus(TransactionStatus.COMPLETED);
+            transaction.setPaymentIntentId("PAYMENT_" + paymentMethod + "_" + System.currentTimeMillis());
 
-        return transactionRepository.save(transaction);
+            // Complete the purchase process
+            if (transaction.getType() == TransactionType.PRIMARY_PURCHASE) {
+                completeTicketPurchase(transaction);
+            } else {
+                completeListingPurchase(transaction);
+            }
+
+            Transaction savedTransaction = transactionRepository.save(transaction);
+
+            // Send email notifications
+            try {
+                emailService.sendPurchaseConfirmationEmail(transaction.getBuyer(), savedTransaction);
+
+                if (transaction.getSeller() != null && transaction.getType() == TransactionType.SECONDARY_PURCHASE) {
+                    emailService.sendSaleNotificationEmail(transaction.getSeller(), savedTransaction);
+                }
+            } catch (Exception emailError) {
+                // Log email error but don't fail the transaction
+                System.err.println("Failed to send email notification: " + emailError.getMessage());
+            }
+
+            return savedTransaction;
+
+        } catch (Exception e) {
+            // If anything fails, mark transaction as failed
+            transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
+            throw new RuntimeException("Payment processing failed: " + e.getMessage());
+        }
     }
 
     @Override
@@ -339,10 +379,29 @@ public class TransactionServiceImpl implements TransactionService {
             throw new RuntimeException("Only completed transactions can be refunded");
         }
 
-        // In a real application, this would integrate with a payment gateway for the refund
-        // For now, we'll just update the status
+        // Mark transaction as refunded
         transaction.setStatus(TransactionStatus.REFUNDED);
+        Transaction savedTransaction = transactionRepository.save(transaction);
 
-        return transactionRepository.save(transaction);
+
+        if (transaction.getBuyer() != null) {
+            userBalanceService.addToBalance(
+                    transaction.getBuyer().getId(),
+                    transaction.getAmount(),
+                    "Refund for ticket " + transaction.getTicket().getTicketNumber() + " - " + reason,
+                    "Refund",
+                    transaction.getId()
+            );
+        }
+
+
+        try {
+            // TODO: Implement refund notification email method in EmailService
+            // emailService.sendRefundNotificationEmail(transaction.getBuyer(), savedTransaction, reason);
+        } catch (Exception emailError) {
+            System.err.println("Failed to send refund notification email: " + emailError.getMessage());
+        }
+
+        return savedTransaction;
     }
 }

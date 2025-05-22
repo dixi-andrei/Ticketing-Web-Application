@@ -1,6 +1,8 @@
 package com.mytickets.ticketingApp.service;
 
 import com.mytickets.ticketingApp.model.User;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,9 @@ public interface UserService {
 
     // User profile methods
     User updateProfile(Long id, String firstName, String lastName);
+
+    @Transactional
+    User enableUserWithWelcomeEmail(Long userId);
 
     // User role management
     User addRoleToUser(Long userId, String roleName);

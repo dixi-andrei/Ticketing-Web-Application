@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Confirmation - SmartTickets</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background-color: white; padding: 20px; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .ticket-info { background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .button { background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 20px 0; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>✅ Purchase Confirmed!</h1>
+    </div>
+    <div class="content">
+        <h2>Thank you, <span th:text="${userName}">User</span>!</h2>
+        <p>Your ticket purchase has been confirmed. Here are your ticket details:</p>
+
+        <div class="ticket-info">
+            <h3 th:text="${eventName}">Event Name</h3>
+            <p><strong>Date:</strong> <span th:text="${eventDate}">Event Date</span></p>
+            <p><strong>Venue:</strong> <span th:text="${venue}">Venue</span></p>
+            <p><strong>Ticket Number:</strong> <span th:text="${ticketNumber}">Ticket Number</span></p>
+            <p><strong>Amount Paid:</strong> <span th:text="${amount}">Amount</span></p>
+            <p><strong>Transaction ID:</strong> <span th:text="${transactionNumber}">Transaction Number</span></p>
+        </div>
+
+        <p>Your ticket is now available in your account dashboard. You can view your QR code and ticket details there.</p>
+
+        <a href="#" class="button">View My Tickets</a>
+
+        <p><strong>Important:</strong> Please bring a valid ID and present the QR code at the venue entrance.</p>
+    </div>
+    <div class="footer">
+        <p>&copy; 2025 SmartTickets. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

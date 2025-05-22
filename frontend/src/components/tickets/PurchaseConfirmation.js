@@ -1,9 +1,9 @@
-// src/components/tickets/PurchaseConfirmation.js
 import React from 'react';
 import { Alert, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import EmailNotificationInfo from '../common/EmailNotificationInfo';
 
-const PurchaseConfirmation = ({ purchaseDetails, onClose }) => {
+const PurchaseConfirmation = ({ purchaseDetails, onClose, userEmail }) => {
     return (
         <div className="text-center">
             <div className="py-4">
@@ -17,6 +17,9 @@ const PurchaseConfirmation = ({ purchaseDetails, onClose }) => {
                         Thank you for your purchase. Your ticket(s) have been added to your account.
                     </p>
                 </Alert>
+
+                {/* Email notification info */}
+                <EmailNotificationInfo type="purchase" userEmail={userEmail} />
 
                 <div className="mt-4 mb-3">
                     <h5>Purchase Details</h5>
@@ -33,7 +36,7 @@ const PurchaseConfirmation = ({ purchaseDetails, onClose }) => {
                         <strong>Total Paid:</strong> ${purchaseDetails.totalAmount.toFixed(2)}
                     </p>
                     <p className="mb-1">
-                        <strong>Payment Method:</strong> Credit Card ending in {purchaseDetails.lastFour}
+                        <strong>Payment Method:</strong> {purchaseDetails.paymentMethod}
                     </p>
                 </div>
 

@@ -8,6 +8,7 @@ import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.repository.EventRepository;
 import com.mytickets.ticketingApp.repository.TransactionRepository;
 import com.mytickets.ticketingApp.repository.UserRepository;
+import com.mytickets.ticketingApp.service.EmailService;
 import com.mytickets.ticketingApp.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +40,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private EmailService emailService;
 
     @Override
     public List<User> getAllUsers() {
@@ -118,6 +122,26 @@ public class UserServiceImpl implements UserService {
         user.setLastName(lastName);
 
         return userRepository.save(user);
+    }
+
+    @Transactional
+    @Override
+    public User enableUserWithWelcomeEmail(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+
+        user.setEnabled(true);
+        User savedUser = userRepository.save(user);
+
+        // Send welcome email after successful verification
+        try {
+            emailService.sendWelcomeEmail(savedUser);
+        } catch (Exception e) {
+            // Log error but don't fail the verification
+            System.err.println("Failed to send welcome email: " + e.getMessage());
+        }
+
+        return savedUser;
     }
 
     @Override

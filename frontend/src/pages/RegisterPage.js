@@ -42,13 +42,17 @@ const RegisterPage = () => {
                 values.lastName
             );
 
-            setSuccess('Registration successful! You can now log in.');
+            setSuccess('Registration successful! Please check your email to verify your account before signing in.');
             resetForm();
 
-            // Redirect to login page after 2 seconds
+            // Redirect to login page after 5 seconds
             setTimeout(() => {
-                navigate('/login');
-            }, 2000);
+                navigate('/login', {
+                    state: {
+                        message: 'Registration successful! Please check your email and verify your account before signing in.'
+                    }
+                });
+            }, 5000);
 
         } catch (err) {
             console.error('Registration error:', err);
@@ -71,7 +75,20 @@ const RegisterPage = () => {
                             <h2 className="text-center mb-4">Register</h2>
 
                             {error && <Alert variant="danger">{error}</Alert>}
-                            {success && <Alert variant="success">{success}</Alert>}
+                            {success && (
+                                <Alert variant="success">
+                                    <div className="d-flex align-items-center">
+                                        <i className="bi bi-check-circle-fill me-2"></i>
+                                        <div>
+                                            <strong>Registration Successful!</strong>
+                                            <p className="mb-0 mt-1">{success}</p>
+                                            <small className="text-muted">
+                                                Redirecting to login page in a few seconds...
+                                            </small>
+                                        </div>
+                                    </div>
+                                </Alert>
+                            )}
 
                             <Formik
                                 initialValues={{
@@ -161,10 +178,17 @@ const RegisterPage = () => {
                                             />
                                         </div>
 
+                                        <div className="mb-3">
+                                            <small className="text-muted">
+                                                By registering, you agree to receive email notifications for account verification,
+                                                purchase confirmations, and ticket sales.
+                                            </small>
+                                        </div>
+
                                         <button
                                             type="submit"
                                             className="btn btn-primary w-100 mt-3"
-                                            disabled={isSubmitting}
+                                            disabled={isSubmitting || loading}
                                         >
                                             {loading ? 'Registering...' : 'Register'}
                                         </button>

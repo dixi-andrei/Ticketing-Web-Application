@@ -9,7 +9,7 @@ const Footer = () => {
             <Container>
                 <Row>
                     <Col md={4} className="mb-3 mb-md-0">
-                        <h5>🎟️ Ticketing App</h5>
+                        <h5>🎟️ SmartTickets</h5>
                         <p className="text-muted">
                             Your reliable platform for event tickets and secure reselling.
                         </p>

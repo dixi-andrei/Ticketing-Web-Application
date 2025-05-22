@@ -20,3 +20,27 @@ export const login = (email, password) => {
         password
     });
 };
+
+// Verify email with token
+export const verifyEmail = (token) => {
+    return axios.get(`${API_URL}/verify-email?token=${token}`);
+};
+
+// Resend verification email
+export const resendVerification = (email) => {
+    return axios.post(`${API_URL}/resend-verification?email=${email}`);
+};
+
+// Request password reset
+export const forgotPassword = (email) => {
+    return axios.post(`${API_URL}/forgot-password?email=${email}`);
+};
+
+// Reset password with token
+export const resetPassword = (token, newPassword, confirmPassword) => {
+    return axios.post(`${API_URL}/reset-password`, {
+        token,
+        newPassword,
+        confirmPassword
+    });
+};
