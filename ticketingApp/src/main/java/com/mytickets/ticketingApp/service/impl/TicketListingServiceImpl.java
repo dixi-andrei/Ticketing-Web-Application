@@ -203,27 +203,9 @@ public class TicketListingServiceImpl implements TicketListingService {
         ticket.setPurchaseDate(LocalDateTime.now()); // Update purchase date for new owner
         ticketRepository.save(ticket);
 
-        // Create transaction record
-        Transaction transaction = new Transaction();
-        transaction.setAmount(listing.getAskingPrice());
-        transaction.setType(TransactionType.SECONDARY_PURCHASE);
-        transaction.setStatus(TransactionStatus.COMPLETED);
-        transaction.setBuyer(buyer);
-        transaction.setSeller(seller);
-        transaction.setTicket(ticket);
-        transaction.setTransactionDate(LocalDateTime.now());
-
-        // Save transaction
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-        // Add money to seller's balance
-        userBalanceService.addToBalance(
-                seller.getId(),
-                listing.getAskingPrice(),
-                "Payment for ticket " + ticket.getTicketNumber(),
-                "Transaction",
-                savedTransaction.getId()
-        );
+        // IMPORTANT: DO NOT handle payment here - payment should be handled separately
+        // The payment (balance deduction and seller credit) should be done in the transaction service
+        // when processPaymentWithBalance is called
 
         return ticketListingRepository.save(listing);
     }

@@ -89,7 +89,6 @@ const UserDashboardPage = () => {
         alert('Profile updated successfully!');
     };
 
-    // Fetch user data including balance
     const fetchUserData = async () => {
         try {
             setLoading(true);
@@ -114,8 +113,14 @@ const UserDashboardPage = () => {
                 getMySales().catch(() => ({ data: [] })),
                 getMyTotalPurchases().catch(() => ({ data: { total: 0 } })),
                 getMyTotalSales().catch(() => ({ data: { total: 0 } })),
-                getCurrentBalance().catch(() => ({ data: { balance: 0 } })),
-                getBalanceHistory().catch(() => ({ data: [] }))
+                getCurrentBalance().catch((err) => {
+                    console.error('Balance fetch error:', err);
+                    return { data: { balance: 0 } };
+                }),
+                getBalanceHistory().catch((err) => {
+                    console.error('Balance history fetch error:', err);
+                    return { data: [] };
+                })
             ]);
 
             // Ensure all data is properly formatted as arrays
@@ -126,8 +131,16 @@ const UserDashboardPage = () => {
             setSales(Array.isArray(salesRes.data) ? salesRes.data : []);
             setTotalPurchases(totalPurchasesRes.data?.total || 0);
             setTotalSales(totalSalesRes.data?.total || 0);
-            setUserBalance(balanceRes.data?.balance || 0);
-            setBalanceHistory(Array.isArray(balanceHistoryRes.data) ? balanceHistoryRes.data : []);
+
+            // Fix balance handling
+            const balanceValue = balanceRes.data?.balance || 0;
+            setUserBalance(balanceValue);
+            console.log('Balance fetched:', balanceValue); // Debug log
+
+            // Fix balance history handling
+            const historyArray = Array.isArray(balanceHistoryRes.data) ? balanceHistoryRes.data : [];
+            setBalanceHistory(historyArray);
+            console.log('Balance history fetched:', historyArray); // Debug log
 
             setLoading(false);
         } catch (err) {
@@ -135,7 +148,7 @@ const UserDashboardPage = () => {
             setError('Failed to load your data. Please try again later.');
             setLoading(false);
 
-            // Set mock data for demonstration if we can't get real data
+
             setMockData();
         }
     };

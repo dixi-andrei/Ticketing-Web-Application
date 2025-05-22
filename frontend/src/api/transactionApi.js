@@ -89,7 +89,7 @@ export const getMyTotalSales = () => {
     return axiosInstance.get(`${API_URL}/my-total-sales`);
 };
 
-// Create a ticket purchase transaction with payment method choice
+// FIXED: Create a ticket purchase transaction with payment method choice
 export const createTicketPurchaseTransaction = (ticketId, paymentMethod = 'card') => {
     return axiosInstance.post(`${API_URL}/purchase-ticket`, {
         ticketId,
@@ -97,7 +97,7 @@ export const createTicketPurchaseTransaction = (ticketId, paymentMethod = 'card'
     });
 };
 
-// Create a listing purchase transaction with payment method choice
+// FIXED: Create a listing purchase transaction with payment method choice
 export const createListingPurchaseTransaction = (listingId, paymentMethod = 'card') => {
     return axiosInstance.post(`${API_URL}/purchase-listing`, {
         listingId,

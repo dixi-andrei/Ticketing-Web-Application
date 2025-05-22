@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/balance")
@@ -37,13 +38,34 @@ public class UserBalanceController {
 
     @GetMapping("/history")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<BalanceTransaction>> getBalanceHistory() {
+    public ResponseEntity<List<Map<String, Object>>> getBalanceHistory() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
 
         List<BalanceTransaction> transactions = userBalanceService.getBalanceHistory(userDetails.getId());
 
-        return ResponseEntity.ok(transactions);
+        // Convert to simplified format to avoid JSON serialization issues
+        List<Map<String, Object>> simplifiedTransactions = transactions.stream()
+                .map(transaction -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", transaction.getId());
+                    map.put("amount", transaction.getAmount());
+                    map.put("type", transaction.getType().toString());
+                    map.put("description", transaction.getDescription());
+                    map.put("transactionDate", transaction.getTransactionDate());
+                    map.put("referenceType", transaction.getReferenceType());
+                    map.put("referenceId", transaction.getReferenceId());
+
+                    // Don't include the full user object to avoid circular references
+                    if (transaction.getUser() != null) {
+                        map.put("userId", transaction.getUser().getId());
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(simplifiedTransactions);
     }
 
     @PostMapping("/use")

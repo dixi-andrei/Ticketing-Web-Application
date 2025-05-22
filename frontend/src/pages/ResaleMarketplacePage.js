@@ -1,10 +1,10 @@
-// src/pages/ResaleMarketplacePage.js - Updated with enhanced payment options
+// src/pages/ResaleMarketplacePage.js - FIXED VERSION
 import React, { useState, useEffect, useContext } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Alert, Spinner, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { getAllListings, getListingsByEvent, purchaseListing } from '../api/listingApi';
 import { getAllEvents } from '../api/eventApi';
-import { processPaymentWithBalance, processPayment, createListingPurchaseTransaction } from '../api/transactionApi';
+import { createListingPurchaseTransaction, processPaymentWithBalance, processPayment } from '../api/transactionApi';
 import AuthContext from '../contexts/AuthContext';
 import EnhancedPaymentForm from '../components/tickets/EnhancedPaymentForm';
 import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
@@ -30,7 +30,7 @@ const ResaleMarketplacePage = () => {
     const [selectedListing, setSelectedListing] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
-    const [purchaseStep, setPurchaseStep] = useState('confirm'); // 'confirm', 'payment', 'success'
+    const [purchaseStep, setPurchaseStep] = useState('confirm');
     const [purchaseDetails, setPurchaseDetails] = useState(null);
     const [currentTransaction, setCurrentTransaction] = useState(null);
 
@@ -43,33 +43,27 @@ const ResaleMarketplacePage = () => {
             setLoading(true);
             setError('');
 
-            // Fetch listings and events
             const [listingsResponse, eventsResponse] = await Promise.all([
                 getAllListings(),
                 getAllEvents()
             ]);
 
-            // Important: Only show ACTIVE listings
             let activeListings = Array.isArray(listingsResponse.data)
                 ? listingsResponse.data.filter(listing => listing.status === "ACTIVE")
                 : [];
 
             setListings(activeListings);
             setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
-
             setLoading(false);
         } catch (err) {
             console.error('Error fetching resale marketplace data:', err);
             setError('Failed to load resale listings. Please try again later.');
             setLoading(false);
-
-            // Set mock data for demonstration
             setMockData();
         }
     };
 
     const setMockData = () => {
-        // Mock listings
         const mockListings = [
             {
                 id: 1,
@@ -88,58 +82,18 @@ const ResaleMarketplacePage = () => {
                         id: 1,
                         name: "Summer Music Festival",
                         eventDate: "2025-07-15T18:00:00",
-                        venue: {
-                            name: "Central Park",
-                            city: "New York"
-                        }
+                        venue: { name: "Central Park", city: "New York" }
                     }
                 },
-                seller: {
-                    firstName: "John",
-                    lastName: "Doe"
-                }
-            },
-            {
-                id: 2,
-                askingPrice: 120.00,
-                description: "Great seat, but can't attend",
-                listingDate: "2025-05-12T10:15:00",
-                status: "ACTIVE",
-                ticket: {
-                    id: 102,
-                    ticketNumber: "TKT-67890",
-                    originalPrice: 150.00,
-                    section: "VIP",
-                    row: "2",
-                    seat: "8",
-                    event: {
-                        id: 2,
-                        name: "Basketball Championship",
-                        eventDate: "2025-06-20T19:30:00",
-                        venue: {
-                            name: "Sports Arena",
-                            city: "Los Angeles"
-                        }
-                    }
-                },
-                seller: {
-                    firstName: "Jane",
-                    lastName: "Smith"
-                }
+                seller: { firstName: "John", lastName: "Doe" }
             }
         ];
 
-        // Mock events
         const mockEvents = [
             {
                 id: 1,
                 name: "Summer Music Festival",
                 eventDate: "2025-07-15T18:00:00"
-            },
-            {
-                id: 2,
-                name: "Basketball Championship",
-                eventDate: "2025-06-20T19:30:00"
             }
         ];
 
@@ -150,7 +104,6 @@ const ResaleMarketplacePage = () => {
     const handleEventFilterChange = async (eventId) => {
         setSelectedEvent(eventId);
         if (!eventId) {
-            // If no event selected, show all listings
             try {
                 const response = await getAllListings();
                 const activeListings = Array.isArray(response.data)
@@ -162,7 +115,6 @@ const ResaleMarketplacePage = () => {
                 setError('Failed to load listings. Please try again.');
             }
         } else {
-            // Filter listings by event
             try {
                 const response = await getListingsByEvent(eventId);
                 setListings(Array.isArray(response.data) ? response.data : []);
@@ -174,10 +126,8 @@ const ResaleMarketplacePage = () => {
     };
 
     const handleSearch = () => {
-        // Filter listings based on price range and search term
         let filteredListings = Array.isArray(listings) ? [...listings] : [];
 
-        // Filter by price range
         if (priceRange.min) {
             filteredListings = filteredListings.filter(listing =>
                 listing.askingPrice >= parseFloat(priceRange.min)
@@ -190,7 +140,6 @@ const ResaleMarketplacePage = () => {
             );
         }
 
-        // Filter by search term
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             filteredListings = filteredListings.filter(listing =>
@@ -216,45 +165,47 @@ const ResaleMarketplacePage = () => {
         setShowPaymentForm(false);
     };
 
+    // FIXED: Create real transaction instead of mock
     const handlePurchaseConfirm = async () => {
         try {
             setPurchaseInProgress(true);
             setPurchaseError('');
 
-            // Create a transaction for the listing purchase
-            // In a real implementation, you'd call your API to create a pending transaction
-            const mockTransaction = {
-                id: Math.floor(Math.random() * 10000),
-                amount: selectedListing.askingPrice,
-                status: 'PENDING',
-                listing: selectedListing,
-                ticket: selectedListing.ticket
-            };
+            // Create a real transaction for listing purchase
+            const transactionResponse = await createListingPurchaseTransaction(
+                selectedListing.id,
+                'card' // Default payment method, will be changed in payment form
+            );
 
-            setCurrentTransaction(mockTransaction);
+            setCurrentTransaction(transactionResponse.data);
             setPurchaseStep('payment');
             setShowPaymentForm(true);
             setPurchaseInProgress(false);
         } catch (error) {
             console.error('Error creating transaction:', error);
-            setPurchaseError('Failed to initiate purchase. Please try again.');
+            setPurchaseError(error.response?.data?.message || 'Failed to initiate purchase. Please try again.');
             setPurchaseInProgress(false);
         }
     };
 
+    // FIXED: Use real payment processing
     const handlePaymentComplete = async (paymentInfo) => {
         try {
             setPurchaseInProgress(true);
 
-            let transactionResult;
-
             if (paymentInfo.paymentMethod === 'balance') {
-                // Process balance payment
-                transactionResult = await processPaymentWithBalance(currentTransaction.id);
+                console.log('Processing balance payment for transaction:', currentTransaction.id);
 
-                // Update local state to reflect balance usage
+                // Process balance payment using the existing transaction
+                const paymentResponse = await processPaymentWithBalance(currentTransaction.id);
+                console.log('Balance payment response:', paymentResponse);
+
+                // Complete the actual listing purchase
+                const purchaseResponse = await purchaseListing(selectedListing.id);
+                console.log('Purchase response:', purchaseResponse);
+
                 const transactionDetails = {
-                    transactionId: transactionResult.data?.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
+                    transactionId: currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
                     eventName: selectedListing.ticket.event.name,
                     ticketNumber: selectedListing.ticket.ticketNumber,
                     section: selectedListing.ticket.section,
@@ -262,7 +213,7 @@ const ResaleMarketplacePage = () => {
                     seat: selectedListing.ticket.seat,
                     totalAmount: selectedListing.askingPrice,
                     paymentMethod: 'Account Balance',
-                    balanceUsed: paymentInfo.balanceUsed,
+                    balanceUsed: selectedListing.askingPrice,
                     newBalance: paymentInfo.newBalance,
                     purchaseDate: new Date().toISOString(),
                     seller: selectedListing.seller
@@ -270,12 +221,19 @@ const ResaleMarketplacePage = () => {
 
                 setPurchaseDetails(transactionDetails);
             } else {
-                // Process credit card payment
-                transactionResult = await processPayment(
+                console.log('Processing card payment for transaction:', currentTransaction.id);
+
+                // Process credit card payment using the existing transaction
+                const paymentResponse = await processPayment(
                     currentTransaction.id,
                     'credit_card',
                     JSON.stringify(paymentInfo.billingInfo)
                 );
+                console.log('Card payment response:', paymentResponse);
+
+                // Complete the actual listing purchase
+                const purchaseResponse = await purchaseListing(selectedListing.id);
+                console.log('Purchase response:', purchaseResponse);
 
                 const transactionDetails = {
                     transactionId: paymentInfo.paymentId,
@@ -294,9 +252,6 @@ const ResaleMarketplacePage = () => {
                 setPurchaseDetails(transactionDetails);
             }
 
-            // Call the actual purchase API
-            await purchaseListing(selectedListing.id);
-
             setPurchaseStep('success');
 
             // Refresh listings after successful purchase
@@ -305,7 +260,8 @@ const ResaleMarketplacePage = () => {
             setPurchaseInProgress(false);
         } catch (error) {
             console.error('Payment processing error:', error);
-            setPurchaseError(error.response?.data?.message || 'Payment processing failed. Please try again.');
+            console.error('Error details:', error.response?.data);
+            setPurchaseError(error.response?.data?.message || error.message || 'Payment processing failed. Please try again.');
             setPurchaseInProgress(false);
         }
     };

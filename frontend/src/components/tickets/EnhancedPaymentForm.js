@@ -101,14 +101,21 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
             setProcessing(true);
 
             if (paymentMethod === 'balance') {
+                console.log('Processing balance payment...');
+                console.log('Current balance:', userBalance);
+                console.log('Amount to pay:', amount);
+                console.log('New balance will be:', userBalance - amount);
+
                 // Process balance payment
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+
+                const newBalance = userBalance - amount;
 
                 onPaymentComplete({
                     paymentMethod: 'balance',
                     balanceUsed: amount,
                     paymentId: `balance_${Math.random().toString(36).substring(2, 15)}`,
-                    newBalance: userBalance - amount
+                    newBalance: newBalance
                 });
             } else {
                 // Process card payment
