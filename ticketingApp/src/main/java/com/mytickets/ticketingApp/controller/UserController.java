@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -31,9 +32,37 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getAllUsers() {
+    public ResponseEntity<List<Map<String, Object>>> getAllUsers() {
         List<User> users = userService.getAllUsers();
-        return new ResponseEntity<>(users, HttpStatus.OK);
+
+        List<Map<String, Object>> simplifiedUsers = users.stream()
+                .map(user -> {
+                    Map<String, Object> userMap = new HashMap<>();
+                    userMap.put("id", user.getId());
+                    userMap.put("email", user.getEmail());
+                    userMap.put("firstName", user.getFirstName());
+                    userMap.put("lastName", user.getLastName());
+                    userMap.put("enabled", user.isEnabled());
+                    userMap.put("provider", user.getProvider());
+
+                    // Add roles as simple strings
+                    List<String> roleNames = user.getRoles().stream()
+                            .map(role -> role.getName().toString())
+                            .collect(Collectors.toList());
+                    userMap.put("roles", roleNames);
+
+                    // Add balance if available
+                    if (user.getUserBalance() != null) {
+                        userMap.put("balance", user.getUserBalance().getBalance());
+                    } else {
+                        userMap.put("balance", 0.0);
+                    }
+
+                    return userMap;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedUsers, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")

@@ -33,4 +33,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.event.id = ?1 AND t.status = ?2")
     Long countByEventIdAndStatus(Long eventId, TicketStatus status);
+    List<Ticket> findByPricingTierIdAndStatus(Long pricingTierId, TicketStatus status);
+
+
 }

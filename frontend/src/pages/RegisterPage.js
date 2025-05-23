@@ -29,13 +29,13 @@ const RegisterPage = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const handleSubmit = async (values, { setSubmitting, resetForm }) => {
+    const handleSubmit = async (values, { setSubmitting, resetForm, setFieldError }) => {
         try {
             setError('');
             setSuccess('');
             setLoading(true);
 
-            await register(
+            const response = await register(
                 values.email,
                 values.password,
                 values.firstName,
@@ -56,10 +56,20 @@ const RegisterPage = () => {
 
         } catch (err) {
             console.error('Registration error:', err);
-            setError(
-                err.response?.data?.message ||
-                'Failed to register. Please try again.'
-            );
+
+            // Handle specific error types
+            if (err.response?.status === 400) {
+                const errorMessage = err.response.data?.message;
+                if (errorMessage?.includes('Email is already in use')) {
+                    setFieldError('email', 'This email is already registered');
+                } else {
+                    setError(errorMessage || 'Registration failed. Please try again.');
+                }
+            } else if (err.response?.status === 500) {
+                setError('Email service is currently unavailable. Please try again later.');
+            } else {
+                setError('Registration failed. Please check your connection and try again.');
+            }
         } finally {
             setLoading(false);
             setSubmitting(false);

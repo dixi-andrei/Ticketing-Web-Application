@@ -216,6 +216,9 @@ public class TicketController {
             Ticket newTicket = ticketService.createTicket(ticket);
             return new ResponseEntity<>(newTicket, HttpStatus.CREATED);
         }
+
+
+
     /*
         @PostMapping("/batch")
         @PreAuthorize("hasRole('ADMIN')")
@@ -228,6 +231,72 @@ public class TicketController {
             return new ResponseEntity<>(tickets, HttpStatus.CREATED);
         }
 */
+
+    // Add this method to your TicketController.java
+
+    @GetMapping("/available-by-pricing-tier/{pricingTierId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getAvailableTicketsByPricingTier(@PathVariable Long pricingTierId) {
+        try {
+            // Get all tickets for this pricing tier that are available
+            List<Ticket> availableTickets = ticketRepository.findByPricingTierIdAndStatus(pricingTierId, TicketStatus.AVAILABLE);
+
+            if (availableTickets.isEmpty()) {
+                return new ResponseEntity<>(new ArrayList<>(), HttpStatus.OK);
+            }
+
+            // Convert to simplified format
+            List<Map<String, Object>> simplifiedTickets = availableTickets.stream()
+                    .map(ticket -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("id", ticket.getId());
+                        map.put("ticketNumber", ticket.getTicketNumber());
+                        map.put("originalPrice", ticket.getOriginalPrice());
+                        map.put("currentPrice", ticket.getCurrentPrice());
+                        map.put("section", ticket.getSection());
+                        map.put("row", ticket.getRow());
+                        map.put("seat", ticket.getSeat());
+                        map.put("status", ticket.getStatus());
+
+                        // Add simplified event info
+                        if (ticket.getEvent() != null) {
+                            Map<String, Object> eventMap = new HashMap<>();
+                            eventMap.put("id", ticket.getEvent().getId());
+                            eventMap.put("name", ticket.getEvent().getName());
+                            eventMap.put("eventDate", ticket.getEvent().getEventDate());
+
+                            // Add simplified venue info
+                            if (ticket.getEvent().getVenue() != null) {
+                                Map<String, Object> venueMap = new HashMap<>();
+                                venueMap.put("id", ticket.getEvent().getVenue().getId());
+                                venueMap.put("name", ticket.getEvent().getVenue().getName());
+                                venueMap.put("city", ticket.getEvent().getVenue().getCity());
+                                eventMap.put("venue", venueMap);
+                            }
+
+                            map.put("event", eventMap);
+                        }
+
+                        // Add simplified pricing tier info
+                        if (ticket.getPricingTier() != null) {
+                            Map<String, Object> tierMap = new HashMap<>();
+                            tierMap.put("id", ticket.getPricingTier().getId());
+                            tierMap.put("name", ticket.getPricingTier().getName());
+                            tierMap.put("price", ticket.getPricingTier().getPrice());
+                            map.put("pricingTier", tierMap);
+                        }
+
+                        return map;
+                    })
+                    .collect(Collectors.toList());
+
+            return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @PostMapping("/batch")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<Ticket>> createTicketsBatch(

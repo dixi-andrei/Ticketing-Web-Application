@@ -1,17 +1,19 @@
-// src/pages/EventDetailPage.js - Updated with balance payment support
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Button, Badge, Alert, Modal } from 'react-bootstrap';
 import { getEventById } from '../api/eventApi';
 import { getPricingTiersByEvent } from '../api/pricingTierApi';
 import { purchaseTicket } from '../api/ticketApi';
-import { processPaymentWithBalance, processPayment } from '../api/transactionApi';
+import {
+    processPaymentWithBalance,
+    processPayment,
+    createTicketPurchaseTransaction
+} from '../api/transactionApi';
+import axiosInstance from '../api/axiosConfig';
 import EnhancedPaymentForm from '../components/tickets/EnhancedPaymentForm';
 import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
 import AuthContext from '../contexts/AuthContext';
 import { getEventImageUrl, handleImageError } from '../utils/imageUtils';
-
-
 
 const EventDetailPage = () => {
     const { id } = useParams();
@@ -27,11 +29,40 @@ const EventDetailPage = () => {
 
     // Purchase states
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+    const [showPaymentForm, setShowPaymentForm] = useState(false); // Add this missing state
     const [selectedTier, setSelectedTier] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [purchaseLoading, setPurchaseLoading] = useState(false);
     const [purchaseError, setPurchaseError] = useState('');
     const [currentTransaction, setCurrentTransaction] = useState(null);
+
+    const getAvailableTicketForPricingTier = async (pricingTierId) => {
+        try {
+            // Get available tickets by pricing tier
+            const response = await axiosInstance.get(`/tickets/available-by-pricing-tier/${pricingTierId}`);
+            return response.data[0]; // Get the first available ticket
+        } catch (error) {
+            console.error('Error getting available ticket:', error);
+            // Fallback: try to get tickets by event and filter by pricing tier
+            try {
+                const eventTicketsResponse = await axiosInstance.get(`/tickets/event/${id}`);
+                const availableTickets = eventTicketsResponse.data.filter(ticket =>
+                    ticket.pricingTier?.id === pricingTierId &&
+                    ticket.status === 'AVAILABLE'
+                );
+
+                if (availableTickets.length > 0) {
+                    return availableTickets[0];
+                }
+
+                throw new Error('No available tickets found for this pricing tier');
+            } catch (fallbackError) {
+                console.error('Fallback error:', fallbackError);
+                throw new Error('No available tickets found for this pricing tier');
+            }
+        }
+    };
+
 
     const formatDate = (dateString) => {
         try {
@@ -92,8 +123,40 @@ const EventDetailPage = () => {
         setPurchaseError('');
         setPurchaseStep('select');
         setShowPurchaseModal(true);
+        setShowPaymentForm(false); // Reset payment form state
     };
 
+    // Your updated handlePurchaseConfirm function
+    const handlePurchaseConfirm = async () => {
+        try {
+            setPurchaseLoading(true);
+            setPurchaseError('');
+
+            // Step 1: Get an available ticket for the selected pricing tier
+            const availableTicket = await getAvailableTicketForPricingTier(selectedTier.id);
+
+            if (!availableTicket) {
+                throw new Error('No available tickets found for this pricing tier');
+            }
+
+            // Step 2: Create a transaction for this specific ticket
+            const transactionResponse = await createTicketPurchaseTransaction(
+                availableTicket.id, // Use the actual ticket ID
+                'card' // Default payment method
+            );
+
+            setCurrentTransaction(transactionResponse.data);
+            setPurchaseStep('payment');
+            setShowPaymentForm(true);
+            setPurchaseLoading(false);
+        } catch (error) {
+            console.error('Error creating transaction:', error);
+            setPurchaseError(error.message || 'Failed to initiate purchase. Please try again.');
+            setPurchaseLoading(false);
+        }
+    };
+
+    // Your updated handlePaymentComplete function
     const handlePaymentComplete = async (paymentInfo) => {
         try {
             setPurchaseLoading(true);
@@ -103,20 +166,6 @@ const EventDetailPage = () => {
             if (paymentInfo.paymentMethod === 'balance') {
                 // Process balance payment
                 transactionResult = await processPaymentWithBalance(currentTransaction.id);
-
-                // Update local state to reflect balance usage
-                const transactionDetails = {
-                    transactionId: transactionResult.data.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
-                    eventName: event.name,
-                    quantity: quantity,
-                    totalAmount: selectedTier?.price * quantity,
-                    paymentMethod: 'Account Balance',
-                    balanceUsed: paymentInfo.balanceUsed,
-                    newBalance: paymentInfo.newBalance,
-                    purchaseDate: new Date().toISOString()
-                };
-
-                setPurchaseDetails(transactionDetails);
             } else {
                 // Process credit card payment
                 transactionResult = await processPayment(
@@ -124,29 +173,33 @@ const EventDetailPage = () => {
                     'credit_card',
                     JSON.stringify(paymentInfo.billingInfo)
                 );
-
-                const transactionDetails = {
-                    transactionId: paymentInfo.paymentId,
-                    eventName: event.name,
-                    quantity: quantity,
-                    totalAmount: selectedTier?.price * quantity * 1.029, // Include processing fee
-                    lastFour: paymentInfo.lastFour,
-                    paymentMethod: 'Credit Card',
-                    purchaseDate: new Date().toISOString()
-                };
-
-                setPurchaseDetails(transactionDetails);
             }
 
+            // After successful payment, the backend should have updated ticket ownership
+            const transactionDetails = {
+                transactionId: transactionResult.data.transactionNumber || currentTransaction.transactionNumber,
+                eventName: event.name,
+                quantity: quantity,
+                totalAmount: paymentInfo.paymentMethod === 'balance' ?
+                    selectedTier?.price * quantity :
+                    selectedTier?.price * quantity * 1.029,
+                paymentMethod: paymentInfo.paymentMethod === 'balance' ? 'Account Balance' : 'Credit Card',
+                balanceUsed: paymentInfo.balanceUsed,
+                newBalance: paymentInfo.newBalance,
+                lastFour: paymentInfo.lastFour,
+                purchaseDate: new Date().toISOString()
+            };
+
+            setPurchaseDetails(transactionDetails);
             setPurchaseStep('confirmation');
 
-            // Update the event's available tickets
+            // Update the event's available tickets (this should come from the API response)
             if (event && selectedTier) {
                 const updatedTiers = pricingTiers.map(tier => {
                     if (tier.id === selectedTier.id) {
                         return {
                             ...tier,
-                            available: tier.available - quantity
+                            available: Math.max(0, tier.available - quantity)
                         };
                     }
                     return tier;
@@ -155,7 +208,7 @@ const EventDetailPage = () => {
                 setPricingTiers(updatedTiers);
                 setEvent({
                     ...event,
-                    availableTickets: event.availableTickets - quantity
+                    availableTickets: Math.max(0, event.availableTickets - quantity)
                 });
             }
 
@@ -167,33 +220,6 @@ const EventDetailPage = () => {
         }
     };
 
-    const handlePurchaseConfirm = async () => {
-        try {
-            setPurchaseLoading(true);
-            setPurchaseError('');
-
-            // Create initial transaction
-            // In a real implementation, you'd call your API to create a pending transaction
-            const mockTransaction = {
-                id: Math.floor(Math.random() * 10000),
-                amount: selectedTier.price * quantity,
-                status: 'PENDING',
-                ticket: {
-                    event: event,
-                    originalPrice: selectedTier.price
-                }
-            };
-
-            setCurrentTransaction(mockTransaction);
-            setPurchaseStep('payment');
-            setPurchaseLoading(false);
-        } catch (error) {
-            console.error('Error creating transaction:', error);
-            setPurchaseError('Failed to initiate purchase. Please try again.');
-            setPurchaseLoading(false);
-        }
-    };
-
     const resetPurchaseModal = () => {
         setPurchaseStep('select');
         setPurchaseDetails(null);
@@ -201,6 +227,7 @@ const EventDetailPage = () => {
         setQuantity(1);
         setPurchaseError('');
         setShowPurchaseModal(false);
+        setShowPaymentForm(false);
         setPurchaseLoading(false);
     };
 

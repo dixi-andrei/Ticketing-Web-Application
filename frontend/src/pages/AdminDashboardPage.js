@@ -698,7 +698,7 @@ const AdminDashboardPage = () => {
                             </Form.Group>
                         </Col>
                         <Col md={3}>
-                            <Button variant="outline-primary" className="w-100">
+                            <Button variant="outline-primary" className="w-100" onClick={fetchDashboardData}>
                                 <i className="bi bi-search me-2"></i>Search
                             </Button>
                         </Col>
@@ -722,19 +722,30 @@ const AdminDashboardPage = () => {
                             <tbody>
                             {users.map(user => (
                                 <tr key={user.id}>
-                                    <td>{user.firstName} {user.lastName}</td>
-                                    <td>{user.email}</td>
+                                    <td>{user.firstName || ''} {user.lastName || ''}</td>
+                                    <td>{user.email || ''}</td>
                                     <td>
-                                        {user.roles?.map(role => (
-                                            <Badge
-                                                key={role.name}
-                                                bg={role.name === "ROLE_ADMIN" ? "danger" :
-                                                    role.name === "ROLE_MODERATOR" ? "warning" : "primary"}
-                                                className="me-1"
-                                            >
-                                                {role.name.replace('ROLE_', '')}
-                                            </Badge>
-                                        ))}
+                                        {user.roles && Array.isArray(user.roles) ?
+                                            user.roles.map((role, index) => {
+                                                // Handle both object and string role formats
+                                                const roleName = typeof role === 'string' ? role : (role?.name || '');
+
+                                                if (!roleName) return null;
+
+                                                return (
+                                                    <Badge
+                                                        key={index}
+                                                        bg={roleName === "ROLE_ADMIN" ? "danger" :
+                                                            roleName === "ROLE_MODERATOR" ? "warning" : "primary"}
+                                                        className="me-1"
+                                                    >
+                                                        {roleName.replace('ROLE_', '')}
+                                                    </Badge>
+                                                );
+                                            }).filter(Boolean) // Remove null values
+                                            :
+                                            <Badge bg="secondary">No roles</Badge>
+                                        }
                                     </td>
                                     <td>
                                         <Badge bg={user.enabled ? "success" : "danger"}>
@@ -756,6 +767,7 @@ const AdminDashboardPage = () => {
                                                 size="sm"
                                                 className="me-2"
                                                 title="Disable user"
+                                                onClick={() => adminAPI.disableUser(user.id).then(fetchDashboardData)}
                                             >
                                                 <i className="bi bi-person-x"></i>
                                             </Button>
@@ -765,6 +777,7 @@ const AdminDashboardPage = () => {
                                                 size="sm"
                                                 className="me-2"
                                                 title="Enable user"
+                                                onClick={() => adminAPI.enableUser(user.id).then(fetchDashboardData)}
                                             >
                                                 <i className="bi bi-person-check"></i>
                                             </Button>

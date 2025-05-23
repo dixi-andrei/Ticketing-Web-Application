@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,9 +36,12 @@ public class TokenServiceImpl implements TokenService {
     @Override
     @Transactional
     public EmailVerificationToken createVerificationToken(User user) {
-        // Delete any existing tokens for this user
+        // Delete any existing tokens for this user first
         Optional<EmailVerificationToken> existingToken = emailVerificationTokenRepository.findByUser(user);
-        existingToken.ifPresent(emailVerificationTokenRepository::delete);
+        if (existingToken.isPresent()) {
+            emailVerificationTokenRepository.delete(existingToken.get());
+            emailVerificationTokenRepository.flush(); // Force immediate execution
+        }
 
         String token = UUID.randomUUID().toString();
         EmailVerificationToken verificationToken = new EmailVerificationToken(token, user);
@@ -47,9 +51,12 @@ public class TokenServiceImpl implements TokenService {
     @Override
     @Transactional
     public PasswordResetToken createPasswordResetToken(User user) {
-        // Delete any existing tokens for this user
+        // Delete any existing tokens for this user first
         Optional<PasswordResetToken> existingToken = passwordResetTokenRepository.findByUser(user);
-        existingToken.ifPresent(passwordResetTokenRepository::delete);
+        if (existingToken.isPresent()) {
+            passwordResetTokenRepository.delete(existingToken.get());
+            passwordResetTokenRepository.flush(); // Force immediate execution
+        }
 
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = new PasswordResetToken(token, user);
@@ -74,7 +81,6 @@ public class TokenServiceImpl implements TokenService {
 
                 // Send welcome email
                 try {
-
                     emailService.sendWelcomeEmail(user);
                 } catch (Exception e) {
                     System.err.println("Failed to send welcome email: " + e.getMessage());
@@ -85,8 +91,6 @@ public class TokenServiceImpl implements TokenService {
         }
         return false;
     }
-
-
 
     @Override
     public boolean validatePasswordResetToken(String token) {
@@ -106,7 +110,33 @@ public class TokenServiceImpl implements TokenService {
     @Transactional
     public void deleteUsedTokens() {
         LocalDateTime now = LocalDateTime.now();
-        emailVerificationTokenRepository.deleteByExpiryDateLessThan(now);
-        passwordResetTokenRepository.deleteByExpiryDateLessThan(now);
+
+        // Delete expired email verification tokens
+        List<EmailVerificationToken> expiredEmailTokens = emailVerificationTokenRepository.findAllByExpiryDateLessThan(now);
+        if (!expiredEmailTokens.isEmpty()) {
+            emailVerificationTokenRepository.deleteAll(expiredEmailTokens);
+        }
+
+        // Delete expired password reset tokens
+        List<PasswordResetToken> expiredPasswordTokens = passwordResetTokenRepository.findAllByExpiryDateLessThan(now);
+        if (!expiredPasswordTokens.isEmpty()) {
+            passwordResetTokenRepository.deleteAll(expiredPasswordTokens);
+        }
+    }
+
+    // Add this method to manually clean up tokens for a user
+    @Transactional
+    public void cleanupUserTokens(User user) {
+        // Clean up email verification tokens
+        Optional<EmailVerificationToken> emailToken = emailVerificationTokenRepository.findByUser(user);
+        emailToken.ifPresent(emailVerificationTokenRepository::delete);
+
+        // Clean up password reset tokens
+        Optional<PasswordResetToken> passwordToken = passwordResetTokenRepository.findByUser(user);
+        passwordToken.ifPresent(passwordResetTokenRepository::delete);
+
+        // Force execution
+        emailVerificationTokenRepository.flush();
+        passwordResetTokenRepository.flush();
     }
 }
