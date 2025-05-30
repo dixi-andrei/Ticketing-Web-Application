@@ -1,15 +1,20 @@
-// frontend/src/components/tickets/EnhancedPaymentForm.js - UPDATED WITH STRIPE
+// frontend/src/components/tickets/EnhancedPaymentForm.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { Form, Row, Col, Button, Alert, Card } from 'react-bootstrap';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getCurrentBalance } from '../../api/userBalanceApi';
 
-// Replace with your actual Stripe publishable key
+// FIXED: Use the correct Stripe publishable key from your backend config
 const stripePromise = loadStripe('pk_test_51RUV4CQKzJAWuSVZP4QE2rpfQaLxSkU6qjfbMoOnwczZcvxT6SplOwGNchG0CeARjHumLJTypW2SqxzbkdamHkJ700EzG59Cf3');
 
-const StripeCardForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
-    // Add this check at the beginning
+const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState('');
+
+    // FIXED: Better validation for transaction
     if (!currentTransaction) {
         return (
             <Alert variant="danger">
@@ -19,8 +24,8 @@ const StripeCardForm = ({ amount, onPaymentComplete, onCancel, currentTransactio
         );
     }
 
-    // Add this check for paymentIntentId
-    if (!currentTransaction.paymentIntentId) {
+    // FIXED: Check for both paymentIntentId and that it contains client secret
+    if (!currentTransaction.paymentIntentId || !currentTransaction.paymentIntentId.includes('_secret_')) {
         return (
             <Alert variant="danger">
                 Payment setup incomplete. Please try again.
@@ -28,12 +33,6 @@ const StripeCardForm = ({ amount, onPaymentComplete, onCancel, currentTransactio
             </Alert>
         );
     }
-}
-const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
-    const stripe = useStripe();
-    const elements = useElements();
-    const [processing, setProcessing] = useState(false);
-    const [error, setError] = useState('');
 
     const handleStripePayment = async () => {
         if (!stripe || !elements) {
@@ -41,9 +40,7 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
             return;
         }
 
-        // Get the CardElement from elements
         const cardElement = elements.getElement(CardElement);
-
         if (!cardElement) {
             setError('Card element not found. Please refresh and try again.');
             return;
@@ -53,31 +50,32 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
         setError('');
 
         try {
-            // Use the client secret directly from the transaction
+            // FIXED: Use the client secret directly from the transaction
             const clientSecret = currentTransaction.paymentIntentId;
 
-            // Verify it's a client secret (should start with 'pi_' and contain '_secret_')
-            if (!clientSecret || !clientSecret.includes('_secret_')) {
-                throw new Error('Invalid payment setup. Please try again.');
-            }
-
-            console.log('Using client secret:', clientSecret); // Debug log
+            console.log('Confirming payment with client secret:', clientSecret);
 
             // Confirm the payment with Stripe using the client secret
             const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
                 payment_method: {
                     card: cardElement,
+                    billing_details: {
+                        // You can add billing details here if needed
+                    }
                 }
             });
 
             if (stripeError) {
+                console.error('Stripe error:', stripeError);
                 setError(stripeError.message);
                 setProcessing(false);
                 return;
             }
 
             if (paymentIntent.status === 'succeeded') {
-                // Confirm payment with your backend using the PaymentIntent ID (not client secret)
+                console.log('Payment succeeded:', paymentIntent.id);
+
+                // FIXED: Confirm payment with your backend using the transaction ID
                 const confirmResponse = await fetch(`/api/transactions/${currentTransaction.id}/confirm-stripe-payment`, {
                     method: 'POST',
                     headers: {
@@ -87,19 +85,26 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
                 });
 
                 if (!confirmResponse.ok) {
-                    throw new Error('Failed to confirm payment with server');
+                    const errorText = await confirmResponse.text();
+                    console.error('Backend confirmation failed:', errorText);
+                    throw new Error('Failed to confirm payment with server: ' + errorText);
                 }
+
+                const confirmResult = await confirmResponse.json();
+                console.log('Backend confirmation successful:', confirmResult);
 
                 onPaymentComplete({
                     paymentMethod: 'credit_card',
                     paymentId: paymentIntent.id,
                     lastFour: paymentIntent.payment_method?.card?.last4 || '****'
                 });
+            } else {
+                setError(`Payment was not successful. Status: ${paymentIntent.status}`);
             }
 
             setProcessing(false);
         } catch (err) {
-            console.error('Payment error:', err); // Debug log
+            console.error('Payment error:', err);
             setError(err.message || 'Payment failed. Please try again.');
             setProcessing(false);
         }
@@ -121,6 +126,9 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
                                 '::placeholder': {
                                     color: '#aab7c4',
                                 },
+                            },
+                            invalid: {
+                                color: '#9e2146',
                             },
                         },
                     }}
@@ -179,6 +187,7 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
     const handleBalancePayment = async () => {
         setProcessing(true);
         try {
+            // FIXED: Use the API endpoint correctly
             const response = await fetch(`/api/transactions/${currentTransaction.id}/pay-with-balance`, {
                 method: 'POST',
                 headers: {
@@ -188,10 +197,13 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
             });
 
             if (!response.ok) {
-                throw new Error('Balance payment failed');
+                const errorText = await response.text();
+                throw new Error('Balance payment failed: ' + errorText);
             }
 
+            const result = await response.json();
             const newBalance = userBalance - amount;
+
             onPaymentComplete({
                 paymentMethod: 'balance',
                 balanceUsed: amount,
@@ -199,6 +211,7 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
                 newBalance: newBalance
             });
         } catch (error) {
+            console.error('Balance payment error:', error);
             alert('Balance payment failed: ' + error.message);
         } finally {
             setProcessing(false);

@@ -238,18 +238,38 @@ public class TransactionController {
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<?> confirmStripePayment(@PathVariable Long id) {
         try {
-            Transaction transaction = transactionService.processPayment(id, "credit_card", null);
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                    .getAuthentication().getPrincipal();
+
+            // Get the transaction
+            Transaction transaction = transactionService.getTransactionById(id)
+                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+            // Verify the user owns this transaction
+            if (!transaction.getBuyer().getId().equals(userDetails.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "You don't have permission to access this transaction"));
+            }
+
+            // Process the payment
+            Transaction processedTransaction = transactionService.processPayment(id, "credit_card", null);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("transactionId", transaction.getId());
-            response.put("status", transaction.getStatus());
+            response.put("transactionId", processedTransaction.getId());
+            response.put("transactionNumber", processedTransaction.getTransactionNumber());
+            response.put("status", processedTransaction.getStatus());
             response.put("message", "Payment confirmed successfully");
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
+            System.err.println("Error confirming stripe payment: " + e.getMessage());
+            e.printStackTrace();
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
@@ -275,6 +295,7 @@ public class TransactionController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
 
     @GetMapping("/my-sales")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -435,15 +456,39 @@ public class TransactionController {
         return new ResponseEntity<>(refundedTransaction, HttpStatus.OK);
     }
 
-    // Add this to TransactionController.java
     @PostMapping("/{id}/pay-with-balance")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<Transaction> payWithBalance(@PathVariable Long id) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
-                .getAuthentication().getPrincipal();
+    public ResponseEntity<?> payWithBalance(@PathVariable Long id) {
+        try {
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                    .getAuthentication().getPrincipal();
 
-        Transaction completedTransaction = transactionService.processPaymentWithBalance(id, userDetails.getId());
-        return new ResponseEntity<>(completedTransaction, HttpStatus.OK);
+            // Get the transaction
+            Transaction transaction = transactionService.getTransactionById(id)
+                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+            // Verify the user owns this transaction
+            if (!transaction.getBuyer().getId().equals(userDetails.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "You don't have permission to access this transaction"));
+            }
+
+            Transaction completedTransaction = transactionService.processPaymentWithBalance(id, userDetails.getId());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("transactionId", completedTransaction.getId());
+            response.put("transactionNumber", completedTransaction.getTransactionNumber());
+            response.put("status", completedTransaction.getStatus());
+            response.put("message", "Payment completed with balance");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 
 
