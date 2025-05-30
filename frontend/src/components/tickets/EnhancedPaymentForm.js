@@ -6,8 +6,6 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { getCurrentBalance } from '../../api/userBalanceApi';
 import axiosInstance from '../../api/axiosConfig'; // Import your axios instance
 
-// Use your correct Stripe publishable key
-const stripePromise = loadStripe('pk_test_51RUV4CQKzJAWuSVZP4QE2rpfQaLxSkU6qjfbMoOnwczZcvxT6SplOwGNchG0CeARjHumLJTypW2SqxzbkdamHkJ700EzG59Cf3');
 
 const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
     const stripe = useStripe();
