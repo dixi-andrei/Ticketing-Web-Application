@@ -85,7 +85,9 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
                     onPaymentComplete({
                         paymentMethod: 'credit_card',
                         paymentId: paymentIntent.id,
-                        lastFour: paymentIntent.payment_method?.card?.last4 || '****'
+                        lastFour: paymentIntent.payment_method?.card?.last4 || '****',
+                        transactionId: confirmResponse.data.transactionId,
+                        success: true // Add success flag
                     });
                 } catch (backendError) {
                     console.error('Backend confirmation failed:', backendError);
@@ -150,6 +152,7 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
     const [canPayWithBalance, setCanPayWithBalance] = useState(false);
     const [balanceLoading, setBalanceLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState(''); // Add error state to main component
 
     // Fetch user balance on component mount
     useEffect(() => {
@@ -179,6 +182,7 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
 
     const handleBalancePayment = async () => {
         setProcessing(true);
+        setError(''); // Clear any previous errors
         try {
             // FIXED: Use axiosInstance for consistent API calls
             const response = await axiosInstance.post(
@@ -188,16 +192,19 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
             console.log('Balance payment successful:', response.data);
             const newBalance = userBalance - amount;
 
+            // Call payment completion callback with success info
             onPaymentComplete({
                 paymentMethod: 'balance',
                 balanceUsed: amount,
-                paymentId: `balance_${Math.random().toString(36).substring(2, 15)}`,
-                newBalance: newBalance
+                paymentId: response.data.transactionNumber || `balance_${Math.random().toString(36).substring(2, 15)}`,
+                newBalance: newBalance,
+                transactionId: response.data.transactionId,
+                success: true // Add success flag
             });
         } catch (error) {
             console.error('Balance payment error:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Balance payment failed';
-            alert('Balance payment failed: ' + errorMessage);
+            setError('Balance payment failed: ' + errorMessage);
         } finally {
             setProcessing(false);
         }
@@ -225,6 +232,9 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
     return (
         <div>
             <h5 className="mb-3">Payment Method</h5>
+
+            {/* Show error if any */}
+            {error && <Alert variant="danger" className="mb-3">{error}</Alert>}
 
             {/* Payment Method Selection */}
             <div className="mb-4">

@@ -157,28 +157,14 @@ const EventDetailPage = () => {
         }
     };
 
-    // Your updated handlePaymentComplete function
     const handlePaymentComplete = async (paymentInfo) => {
         try {
             setPurchaseLoading(true);
+            console.log('Payment completed with info:', paymentInfo);
 
-            let transactionResult;
-
-            if (paymentInfo.paymentMethod === 'balance') {
-                // Process balance payment
-                transactionResult = await processPaymentWithBalance(currentTransaction.id);
-            } else {
-                // Process credit card payment
-                transactionResult = await processPayment(
-                    currentTransaction.id,
-                    'credit_card',
-                    JSON.stringify(paymentInfo.billingInfo)
-                );
-            }
-
-            // After successful payment, the backend should have updated ticket ownership
+            // Create transaction details based on payment method
             const transactionDetails = {
-                transactionId: transactionResult.data.transactionNumber || currentTransaction.transactionNumber,
+                transactionId: paymentInfo.transactionId || currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
                 eventName: event.name,
                 quantity: quantity,
                 totalAmount: paymentInfo.paymentMethod === 'balance' ?
@@ -191,6 +177,7 @@ const EventDetailPage = () => {
                 purchaseDate: new Date().toISOString()
             };
 
+            console.log('Setting purchase details:', transactionDetails);
             setPurchaseDetails(transactionDetails);
             setPurchaseStep('confirmation');
 
@@ -216,7 +203,7 @@ const EventDetailPage = () => {
             setPurchaseLoading(false);
         } catch (error) {
             console.error('Payment processing error:', error);
-            setPurchaseError(error.response?.data?.message || 'Payment processing failed. Please try again.');
+            setPurchaseError(error.response?.data?.message || error.message || 'Payment processing failed. Please try again.');
             setPurchaseLoading(false);
         }
     };

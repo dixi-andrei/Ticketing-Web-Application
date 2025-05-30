@@ -196,11 +196,12 @@ const ResaleMarketplacePage = () => {
     const handlePaymentComplete = async (paymentInfo) => {
         try {
             setPurchaseInProgress(true);
+            console.log('Resale payment completed with info:', paymentInfo);
 
             // The payment has already been processed in the EnhancedPaymentForm
             // We just need to create the purchase confirmation details
             const transactionDetails = {
-                transactionId: currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
+                transactionId: paymentInfo.transactionId || currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
                 eventName: selectedListing.ticket.event.name,
                 ticketNumber: selectedListing.ticket.ticketNumber,
                 section: selectedListing.ticket.section,
@@ -220,6 +221,7 @@ const ResaleMarketplacePage = () => {
                 savings: (selectedListing.ticket.originalPrice || 0) - selectedListing.askingPrice
             };
 
+            console.log('Setting resale purchase details:', transactionDetails);
             setPurchaseDetails(transactionDetails);
             setPurchaseStep('success');
 
