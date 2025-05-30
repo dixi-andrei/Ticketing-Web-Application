@@ -1,4 +1,3 @@
-// ticketingApp/src/main/java/com/mytickets/ticketingApp/config/StripeConfig.java
 package com.mytickets.ticketingApp.config;
 
 import com.stripe.Stripe;
@@ -15,6 +14,8 @@ public class StripeConfig {
 
     @PostConstruct
     public void init() {
-        Stripe.apiKey = stripeSecretKey;
+
+        Stripe.apiKey = "sk_test_51RUV4CQKzJAWuSVZS7I8Wz03CNnh0aLz4rzyRLLAS6KcTKQRQEWxy5JBZsNuI2ancA8V6E66VN2WuzLbj9koRNmd00LKfbbrId";
+        System.out.println("Stripe initialized with secret key: " + Stripe.apiKey.substring(0, 10) + "...");
     }
 }

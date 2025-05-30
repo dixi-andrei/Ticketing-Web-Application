@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Alert, Spinner, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { getAllListings, getListingsByEvent, purchaseListing } from '../api/listingApi';
+import { getAllListings, getListingsByEvent } from '../api/listingApi';
 import { getAllEvents } from '../api/eventApi';
-import { createListingPurchaseTransaction, processPaymentWithBalance, processPayment } from '../api/transactionApi';
+import { createListingPurchaseTransaction } from '../api/transactionApi';
 import AuthContext from '../contexts/AuthContext';
 import EnhancedPaymentForm from '../components/tickets/EnhancedPaymentForm';
 import PurchaseConfirmation from '../components/tickets/PurchaseConfirmation';
@@ -23,13 +23,13 @@ const ResaleMarketplacePage = () => {
     const [selectedEvent, setSelectedEvent] = useState('');
     const [priceRange, setPriceRange] = useState({ min: '', max: '' });
     const [searchTerm, setSearchTerm] = useState('');
+    const [originalListings, setOriginalListings] = useState([]); // Store original data for filtering
 
     // Purchase states
     const [purchaseInProgress, setPurchaseInProgress] = useState(false);
     const [purchaseError, setPurchaseError] = useState('');
     const [selectedListing, setSelectedListing] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [purchaseStep, setPurchaseStep] = useState('confirm');
     const [purchaseDetails, setPurchaseDetails] = useState(null);
     const [currentTransaction, setCurrentTransaction] = useState(null);
@@ -53,6 +53,7 @@ const ResaleMarketplacePage = () => {
                 : [];
 
             setListings(activeListings);
+            setOriginalListings(activeListings); // Store original data
             setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
             setLoading(false);
         } catch (err) {
@@ -98,6 +99,7 @@ const ResaleMarketplacePage = () => {
         ];
 
         setListings(mockListings);
+        setOriginalListings(mockListings);
         setEvents(mockEvents);
     };
 
@@ -110,6 +112,7 @@ const ResaleMarketplacePage = () => {
                     ? response.data.filter(listing => listing.status === "ACTIVE")
                     : [];
                 setListings(activeListings);
+                setOriginalListings(activeListings);
             } catch (err) {
                 console.error('Error fetching all listings:', err);
                 setError('Failed to load listings. Please try again.');
@@ -117,7 +120,9 @@ const ResaleMarketplacePage = () => {
         } else {
             try {
                 const response = await getListingsByEvent(eventId);
-                setListings(Array.isArray(response.data) ? response.data : []);
+                const eventListings = Array.isArray(response.data) ? response.data : [];
+                setListings(eventListings);
+                setOriginalListings(eventListings);
             } catch (err) {
                 console.error('Error fetching event listings:', err);
                 setError('Failed to load event listings. Please try again.');
@@ -126,7 +131,7 @@ const ResaleMarketplacePage = () => {
     };
 
     const handleSearch = () => {
-        let filteredListings = Array.isArray(listings) ? [...listings] : [];
+        let filteredListings = [...originalListings];
 
         if (priceRange.min) {
             filteredListings = filteredListings.filter(listing =>
@@ -162,96 +167,60 @@ const ResaleMarketplacePage = () => {
         setPurchaseStep('confirm');
         setShowConfirmModal(true);
         setPurchaseError('');
-        setShowPaymentForm(false);
     };
 
-    // FIXED: Create real transaction instead of mock
+    // FIXED: Create transaction correctly for listing purchase
     const handlePurchaseConfirm = async () => {
         try {
             setPurchaseInProgress(true);
             setPurchaseError('');
 
-            // Create a real transaction for listing purchase
+            // Create a transaction for listing purchase
             const transactionResponse = await createListingPurchaseTransaction(
                 selectedListing.id,
                 'card' // Default payment method, will be changed in payment form
             );
 
+            console.log('Listing transaction created:', transactionResponse.data);
             setCurrentTransaction(transactionResponse.data);
             setPurchaseStep('payment');
-            setShowPaymentForm(true);
             setPurchaseInProgress(false);
         } catch (error) {
             console.error('Error creating transaction:', error);
-            setPurchaseError(error.response?.data?.message || 'Failed to initiate purchase. Please try again.');
+            setPurchaseError(error.response?.data?.error || error.message || 'Failed to initiate purchase. Please try again.');
             setPurchaseInProgress(false);
         }
     };
 
-    // FIXED: Use real payment processing
+    // FIXED: Handle payment completion for resale purchases
     const handlePaymentComplete = async (paymentInfo) => {
         try {
             setPurchaseInProgress(true);
 
-            if (paymentInfo.paymentMethod === 'balance') {
-                console.log('Processing balance payment for transaction:', currentTransaction.id);
+            // The payment has already been processed in the EnhancedPaymentForm
+            // We just need to create the purchase confirmation details
+            const transactionDetails = {
+                transactionId: currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
+                eventName: selectedListing.ticket.event.name,
+                ticketNumber: selectedListing.ticket.ticketNumber,
+                section: selectedListing.ticket.section,
+                row: selectedListing.ticket.row,
+                seat: selectedListing.ticket.seat,
+                quantity: 1,
+                totalAmount: paymentInfo.paymentMethod === 'balance'
+                    ? selectedListing.askingPrice
+                    : selectedListing.askingPrice * 1.029,
+                paymentMethod: paymentInfo.paymentMethod === 'balance' ? 'Account Balance' : 'Credit Card',
+                balanceUsed: paymentInfo.balanceUsed,
+                newBalance: paymentInfo.newBalance,
+                lastFour: paymentInfo.lastFour,
+                purchaseDate: new Date().toISOString(),
+                seller: selectedListing.seller,
+                originalPrice: selectedListing.ticket.originalPrice,
+                savings: (selectedListing.ticket.originalPrice || 0) - selectedListing.askingPrice
+            };
 
-                // Process balance payment using the existing transaction
-                const paymentResponse = await processPaymentWithBalance(currentTransaction.id);
-                console.log('Balance payment response:', paymentResponse);
-
-                // Complete the actual listing purchase
-                const purchaseResponse = await purchaseListing(selectedListing.id);
-                console.log('Purchase response:', purchaseResponse);
-
-                const transactionDetails = {
-                    transactionId: currentTransaction.transactionNumber || 'TRX-' + Math.random().toString(36).substr(2, 9),
-                    eventName: selectedListing.ticket.event.name,
-                    ticketNumber: selectedListing.ticket.ticketNumber,
-                    section: selectedListing.ticket.section,
-                    row: selectedListing.ticket.row,
-                    seat: selectedListing.ticket.seat,
-                    totalAmount: selectedListing.askingPrice,
-                    paymentMethod: 'Account Balance',
-                    balanceUsed: selectedListing.askingPrice,
-                    newBalance: paymentInfo.newBalance,
-                    purchaseDate: new Date().toISOString(),
-                    seller: selectedListing.seller
-                };
-
-                setPurchaseDetails(transactionDetails);
-            } else {
-                console.log('Processing card payment for transaction:', currentTransaction.id);
-
-                // Process credit card payment using the existing transaction
-                const paymentResponse = await processPayment(
-                    currentTransaction.id,
-                    'credit_card',
-                    JSON.stringify(paymentInfo.billingInfo)
-                );
-                console.log('Card payment response:', paymentResponse);
-
-                // Complete the actual listing purchase
-                const purchaseResponse = await purchaseListing(selectedListing.id);
-                console.log('Purchase response:', purchaseResponse);
-
-                const transactionDetails = {
-                    transactionId: paymentInfo.paymentId,
-                    eventName: selectedListing.ticket.event.name,
-                    ticketNumber: selectedListing.ticket.ticketNumber,
-                    section: selectedListing.ticket.section,
-                    row: selectedListing.ticket.row,
-                    seat: selectedListing.ticket.seat,
-                    totalAmount: selectedListing.askingPrice * 1.029, // Include processing fee
-                    paymentMethod: 'Credit Card',
-                    lastFour: paymentInfo.lastFour,
-                    purchaseDate: new Date().toISOString(),
-                    seller: selectedListing.seller
-                };
-
-                setPurchaseDetails(transactionDetails);
-            }
-
+            setPurchaseDetails(transactionDetails);
             setPurchaseStep('success');
 
             // Refresh listings after successful purchase
@@ -259,9 +228,8 @@ const ResaleMarketplacePage = () => {
 
             setPurchaseInProgress(false);
         } catch (error) {
-            console.error('Payment processing error:', error);
-            console.error('Error details:', error.response?.data);
-            setPurchaseError(error.response?.data?.message || error.message || 'Payment processing failed. Please try again.');
+            console.error('Payment completion error:', error);
+            setPurchaseError(error.message || 'Payment processing failed. Please try again.');
             setPurchaseInProgress(false);
         }
     };
@@ -272,7 +240,6 @@ const ResaleMarketplacePage = () => {
         setCurrentTransaction(null);
         setPurchaseError('');
         setShowConfirmModal(false);
-        setShowPaymentForm(false);
         setPurchaseInProgress(false);
         setSelectedListing(null);
     };
@@ -370,6 +337,7 @@ const ResaleMarketplacePage = () => {
                                         placeholder="Search events, venues..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                                     />
                                     <Button variant="primary" onClick={handleSearch}>
                                         Search
@@ -399,7 +367,7 @@ const ResaleMarketplacePage = () => {
                 <Row>
                     {listings.map(listing => (
                         <Col key={listing.id} md={6} lg={4} className="mb-4">
-                            <Card className="h-100 shadow-sm">
+                            <Card className="h-100 shadow-sm hover-card">
                                 <Card.Header>
                                     <div className="d-flex justify-content-between align-items-center">
                                         <span className="text-muted small">Listed {formatDate(listing.listingDate)}</span>
@@ -424,10 +392,17 @@ const ResaleMarketplacePage = () => {
                                             <strong>Seat:</strong> {listing.ticket.seat || 'N/A'}
                                         </div>
                                         <div className="text-end">
-                                            <p className="text-muted mb-0">
-                                                <small>Original price: {formatCurrency(listing.ticket.originalPrice)}</small>
-                                            </p>
-                                            <h4 className="text-primary mb-0">{formatCurrency(listing.askingPrice)}</h4>
+                                            {calculateDiscount(listing) > 0 && (
+                                                <p className="text-muted mb-0">
+                                                    <small><del>Was: {formatCurrency(listing.ticket.originalPrice)}</del></small>
+                                                </p>
+                                            )}
+                                            <h4 className="text-success mb-0">{formatCurrency(listing.askingPrice)}</h4>
+                                            {calculateDiscount(listing) > 0 && (
+                                                <small className="text-success">
+                                                    Save {formatCurrency(listing.ticket.originalPrice - listing.askingPrice)}
+                                                </small>
+                                            )}
                                         </div>
                                     </div>
 
@@ -461,12 +436,13 @@ const ResaleMarketplacePage = () => {
                 onHide={resetPurchaseModal}
                 centered
                 size={purchaseStep === 'payment' ? 'lg' : 'md'}
+                backdrop="static"
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
-                        {purchaseStep === 'confirm' && 'Confirm Purchase'}
+                        {purchaseStep === 'confirm' && 'Confirm Resale Purchase'}
                         {purchaseStep === 'payment' && 'Choose Payment Method'}
-                        {purchaseStep === 'success' && 'Purchase Successful'}
+                        {purchaseStep === 'success' && 'Purchase Successful!'}
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -474,51 +450,74 @@ const ResaleMarketplacePage = () => {
                         <>
                             {purchaseError && <Alert variant="danger">{purchaseError}</Alert>}
 
-                            <h5>{selectedListing.ticket.event.name}</h5>
-                            <p className="text-muted mb-1">{formatDate(selectedListing.ticket.event.eventDate)}</p>
-                            <p className="mb-3">
-                                {selectedListing.ticket.event.venue.name}, {selectedListing.ticket.event.venue.city}
-                            </p>
+                            <Card className="mb-3">
+                                <Card.Body>
+                                    <h5>{selectedListing.ticket.event.name}</h5>
+                                    <p className="text-muted mb-2">{formatDate(selectedListing.ticket.event.eventDate)}</p>
+                                    <p className="mb-3">
+                                        {selectedListing.ticket.event.venue.name}, {selectedListing.ticket.event.venue.city}
+                                    </p>
 
-                            <Row className="mb-3">
-                                <Col>
-                                    <p>
-                                        <strong>Section:</strong> {selectedListing.ticket.section || 'N/A'}<br />
-                                        <strong>Row:</strong> {selectedListing.ticket.row || 'N/A'}<br />
-                                        <strong>Seat:</strong> {selectedListing.ticket.seat || 'N/A'}
-                                    </p>
-                                </Col>
-                                <Col className="text-end">
-                                    <p className="text-muted mb-0">
-                                        <small>Original price: {formatCurrency(selectedListing.ticket.originalPrice)}</small>
-                                    </p>
-                                    <h4 className="text-primary mb-0">{formatCurrency(selectedListing.askingPrice)}</h4>
-                                </Col>
-                            </Row>
+                                    <Row className="mb-3">
+                                        <Col>
+                                            <p className="mb-0">
+                                                <strong>Section:</strong> {selectedListing.ticket.section || 'N/A'}<br />
+                                                <strong>Row:</strong> {selectedListing.ticket.row || 'N/A'}<br />
+                                                <strong>Seat:</strong> {selectedListing.ticket.seat || 'N/A'}
+                                            </p>
+                                        </Col>
+                                        <Col className="text-end">
+                                            {calculateDiscount(selectedListing) > 0 && (
+                                                <p className="text-muted mb-1">
+                                                    <small><del>Original: {formatCurrency(selectedListing.ticket.originalPrice)}</del></small>
+                                                </p>
+                                            )}
+                                            <h4 className="text-success mb-0">{formatCurrency(selectedListing.askingPrice)}</h4>
+                                            {calculateDiscount(selectedListing) > 0 && (
+                                                <small className="text-success">
+                                                    You save {formatCurrency(selectedListing.ticket.originalPrice - selectedListing.askingPrice)}!
+                                                </small>
+                                            )}
+                                        </Col>
+                                    </Row>
+
+                                    {selectedListing.description && (
+                                        <>
+                                            <hr />
+                                            <p className="mb-0">
+                                                <strong>Seller Notes:</strong> "{selectedListing.description}"
+                                            </p>
+                                        </>
+                                    )}
+                                </Card.Body>
+                            </Card>
 
                             <Alert variant="info">
-                                <strong>Fair Price Guarantee:</strong> This ticket is being sold at or below its original purchase price.
-                            </Alert>
-
-                            <Alert variant="success">
-                                <strong>💰 Payment Options Available:</strong>
+                                <strong>🛡️ Secure Resale Purchase:</strong>
                                 <ul className="mb-0 mt-2">
-                                    <li>Pay with your account balance (no processing fees)</li>
-                                    <li>Pay with credit card (small processing fee applies)</li>
+                                    <li>Guaranteed authentic ticket</li>
+                                    <li>Fair price at or below original cost</li>
+                                    <li>Instant ticket transfer after payment</li>
+                                    <li>Full buyer protection</li>
                                 </ul>
                             </Alert>
 
-                            <p className="text-center">
-                                Are you sure you want to purchase this ticket?
-                            </p>
+                            <Alert variant="success">
+                                <strong>💰 Payment Options:</strong>
+                                <ul className="mb-0 mt-2">
+                                    <li>Pay with account balance (no fees)</li>
+                                    <li>Pay with credit card (small processing fee)</li>
+                                </ul>
+                            </Alert>
                         </>
                     )}
 
-                    {purchaseStep === 'payment' && selectedListing && (
+                    {purchaseStep === 'payment' && selectedListing && currentTransaction && (
                         <EnhancedPaymentForm
                             amount={selectedListing.askingPrice}
                             onPaymentComplete={handlePaymentComplete}
                             onCancel={() => setPurchaseStep('confirm')}
+                            currentTransaction={currentTransaction}
                             ticketDetails={{
                                 eventName: selectedListing.ticket.event.name,
                                 eventDate: formatDate(selectedListing.ticket.event.eventDate),
@@ -531,19 +530,67 @@ const ResaleMarketplacePage = () => {
                         />
                     )}
 
+                    {purchaseStep === 'payment' && selectedListing && !currentTransaction && (
+                        <div className="text-center py-4">
+                            <div className="spinner-border text-primary" role="status">
+                                <span className="visually-hidden">Creating transaction...</span>
+                            </div>
+                            <p className="mt-2">Preparing payment...</p>
+                        </div>
+                    )}
+
                     {purchaseStep === 'success' && purchaseDetails && (
-                        <PurchaseConfirmation
-                            purchaseDetails={{
-                                ...purchaseDetails,
-                                eventName: purchaseDetails.eventName,
-                                quantity: 1,
-                                totalAmount: purchaseDetails.totalAmount,
-                                paymentMethod: purchaseDetails.paymentMethod,
-                                lastFour: purchaseDetails.lastFour,
-                                transactionId: purchaseDetails.transactionId
-                            }}
-                            onClose={resetPurchaseModal}
-                        />
+                        <>
+                            <div className="text-center mb-4">
+                                <div className="mb-3">
+                                    <i className="bi bi-check-circle-fill text-success" style={{ fontSize: '3rem' }}></i>
+                                </div>
+                                <h4 className="text-success">Resale Purchase Successful!</h4>
+                                <p>The ticket has been transferred to your account.</p>
+                            </div>
+
+                            <Card className="bg-light">
+                                <Card.Body>
+                                    <h6 className="mb-3">📋 Purchase Summary</h6>
+                                    <div className="mb-3">
+                                        <strong>{purchaseDetails.eventName}</strong><br />
+                                        <small className="text-muted">{formatDate(selectedListing.ticket.event.eventDate)}</small>
+                                    </div>
+
+                                    <div className="d-flex justify-content-between mb-2">
+                                        <span>Ticket Price:</span>
+                                        <span>{formatCurrency(purchaseDetails.totalAmount)}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between mb-2">
+                                        <span>Payment Method:</span>
+                                        <span>{purchaseDetails.paymentMethod}</span>
+                                    </div>
+                                    {purchaseDetails.savings > 0 && (
+                                        <div className="d-flex justify-content-between mb-2">
+                                            <span className="text-success">Your Savings:</span>
+                                            <span className="text-success">{formatCurrency(purchaseDetails.savings)}</span>
+                                        </div>
+                                    )}
+                                    <div className="d-flex justify-content-between">
+                                        <span>Transaction ID:</span>
+                                        <span>{purchaseDetails.transactionId}</span>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+
+                            <div className="text-center mt-4">
+                                <Button
+                                    variant="primary"
+                                    onClick={() => navigate('/dashboard')}
+                                    className="me-2"
+                                >
+                                    View My Tickets
+                                </Button>
+                                <Button variant="outline-secondary" onClick={resetPurchaseModal}>
+                                    Close
+                                </Button>
+                            </div>
+                        </>
                     )}
                 </Modal.Body>
 

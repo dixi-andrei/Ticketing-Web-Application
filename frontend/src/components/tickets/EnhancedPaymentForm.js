@@ -4,8 +4,9 @@ import { Form, Row, Col, Button, Alert, Card } from 'react-bootstrap';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getCurrentBalance } from '../../api/userBalanceApi';
+import axiosInstance from '../../api/axiosConfig'; // Import your axios instance
 
-// FIXED: Use the correct Stripe publishable key from your backend config
+// Use your correct Stripe publishable key
 const stripePromise = loadStripe('pk_test_51RUV4CQKzJAWuSVZP4QE2rpfQaLxSkU6qjfbMoOnwczZcvxT6SplOwGNchG0CeARjHumLJTypW2SqxzbkdamHkJ700EzG59Cf3');
 
 const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
@@ -14,7 +15,7 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
 
-    // FIXED: Better validation for transaction
+    // Check for valid transaction
     if (!currentTransaction) {
         return (
             <Alert variant="danger">
@@ -24,7 +25,7 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
         );
     }
 
-    // FIXED: Check for both paymentIntentId and that it contains client secret
+    // Check for valid payment intent
     if (!currentTransaction.paymentIntentId || !currentTransaction.paymentIntentId.includes('_secret_')) {
         return (
             <Alert variant="danger">
@@ -50,17 +51,15 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
         setError('');
 
         try {
-            // FIXED: Use the client secret directly from the transaction
             const clientSecret = currentTransaction.paymentIntentId;
-
             console.log('Confirming payment with client secret:', clientSecret);
 
-            // Confirm the payment with Stripe using the client secret
+            // Confirm the payment with Stripe
             const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
                 payment_method: {
                     card: cardElement,
                     billing_details: {
-                        // You can add billing details here if needed
+                        // Add billing details if needed
                     }
                 }
             });
@@ -75,29 +74,23 @@ const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransac
             if (paymentIntent.status === 'succeeded') {
                 console.log('Payment succeeded:', paymentIntent.id);
 
-                // FIXED: Confirm payment with your backend using the transaction ID
-                const confirmResponse = await fetch(`/api/transactions/${currentTransaction.id}/confirm-stripe-payment`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
+                // FIXED: Use axiosInstance instead of fetch to ensure correct base URL
+                try {
+                    const confirmResponse = await axiosInstance.post(
+                        `/transactions/${currentTransaction.id}/confirm-stripe-payment`
+                    );
 
-                if (!confirmResponse.ok) {
-                    const errorText = await confirmResponse.text();
-                    console.error('Backend confirmation failed:', errorText);
-                    throw new Error('Failed to confirm payment with server: ' + errorText);
+                    console.log('Backend confirmation successful:', confirmResponse.data);
+
+                    onPaymentComplete({
+                        paymentMethod: 'credit_card',
+                        paymentId: paymentIntent.id,
+                        lastFour: paymentIntent.payment_method?.card?.last4 || '****'
+                    });
+                } catch (backendError) {
+                    console.error('Backend confirmation failed:', backendError);
+                    setError('Payment succeeded but confirmation failed. Please contact support.');
                 }
-
-                const confirmResult = await confirmResponse.json();
-                console.log('Backend confirmation successful:', confirmResult);
-
-                onPaymentComplete({
-                    paymentMethod: 'credit_card',
-                    paymentId: paymentIntent.id,
-                    lastFour: paymentIntent.payment_method?.card?.last4 || '****'
-                });
             } else {
                 setError(`Payment was not successful. Status: ${paymentIntent.status}`);
             }
@@ -187,21 +180,12 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
     const handleBalancePayment = async () => {
         setProcessing(true);
         try {
-            // FIXED: Use the API endpoint correctly
-            const response = await fetch(`/api/transactions/${currentTransaction.id}/pay-with-balance`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            // FIXED: Use axiosInstance for consistent API calls
+            const response = await axiosInstance.post(
+                `/transactions/${currentTransaction.id}/pay-with-balance`
+            );
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error('Balance payment failed: ' + errorText);
-            }
-
-            const result = await response.json();
+            console.log('Balance payment successful:', response.data);
             const newBalance = userBalance - amount;
 
             onPaymentComplete({
@@ -212,7 +196,8 @@ const EnhancedPaymentForm = ({ amount, onPaymentComplete, onCancel, ticketDetail
             });
         } catch (error) {
             console.error('Balance payment error:', error);
-            alert('Balance payment failed: ' + error.message);
+            const errorMessage = error.response?.data?.error || error.message || 'Balance payment failed';
+            alert('Balance payment failed: ' + errorMessage);
         } finally {
             setProcessing(false);
         }
