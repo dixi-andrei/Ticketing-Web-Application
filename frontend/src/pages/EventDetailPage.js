@@ -27,6 +27,7 @@ const EventDetailPage = () => {
     const [purchaseStep, setPurchaseStep] = useState('select'); // 'select', 'payment', 'confirmation'
     const [purchaseDetails, setPurchaseDetails] = useState(null);
 
+
     // Purchase states
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
     const [showPaymentForm, setShowPaymentForm] = useState(false); // Add this missing state
@@ -126,7 +127,6 @@ const EventDetailPage = () => {
         setShowPaymentForm(false); // Reset payment form state
     };
 
-    // Your updated handlePurchaseConfirm function
     const handlePurchaseConfirm = async () => {
         try {
             setPurchaseLoading(true);
@@ -141,10 +141,11 @@ const EventDetailPage = () => {
 
             // Step 2: Create a transaction for this specific ticket
             const transactionResponse = await createTicketPurchaseTransaction(
-                availableTicket.id, // Use the actual ticket ID
+                availableTicket.id,
                 'card' // Default payment method
             );
 
+            console.log('Transaction created:', transactionResponse.data); // Debug log
             setCurrentTransaction(transactionResponse.data);
             setPurchaseStep('payment');
             setShowPaymentForm(true);
@@ -423,11 +424,12 @@ const EventDetailPage = () => {
                         </>
                     )}
 
-                    {purchaseStep === 'payment' && selectedTier && (
+                    {purchaseStep === 'payment' && selectedTier && currentTransaction && (
                         <EnhancedPaymentForm
                             amount={selectedTier.price * quantity}
                             onPaymentComplete={handlePaymentComplete}
                             onCancel={() => setPurchaseStep('select')}
+                            currentTransaction={currentTransaction}  // ← Make sure this is passed!
                             ticketDetails={{
                                 eventName: event.name,
                                 eventDate: formatDate(event.eventDate),
@@ -436,6 +438,14 @@ const EventDetailPage = () => {
                                 quantity: quantity
                             }}
                         />
+                    )}
+                    {purchaseStep === 'payment' && selectedTier && !currentTransaction && (
+                        <div className="text-center py-4">
+                            <div className="spinner-border text-primary" role="status">
+                                <span className="visually-hidden">Creating transaction...</span>
+                            </div>
+                            <p className="mt-2">Preparing payment...</p>
+                        </div>
                     )}
 
                     {purchaseStep === 'confirmation' && purchaseDetails && (

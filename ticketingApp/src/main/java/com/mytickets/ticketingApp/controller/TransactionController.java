@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -231,6 +232,48 @@ public class TransactionController {
                 .collect(Collectors.toList());
 
         return new ResponseEntity<>(simplifiedTransactions, HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/confirm-stripe-payment")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<?> confirmStripePayment(@PathVariable Long id) {
+        try {
+            Transaction transaction = transactionService.processPayment(id, "credit_card", null);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("transactionId", transaction.getId());
+            response.put("status", transaction.getStatus());
+            response.put("message", "Payment confirmed successfully");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/payment-intent")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<?> getPaymentIntent(@PathVariable Long id) {
+        try {
+            Optional<Transaction> transactionOpt = transactionService.getTransactionById(id);
+            if (transactionOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Transaction transaction = transactionOpt.get();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("paymentIntentId", transaction.getPaymentIntentId());
+            response.put("amount", transaction.getAmount());
+            response.put("status", transaction.getStatus());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/my-sales")

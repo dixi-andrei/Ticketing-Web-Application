@@ -6,8 +6,11 @@ import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.repository.TransactionRepository;
 import com.mytickets.ticketingApp.repository.UserRepository;
 import com.mytickets.ticketingApp.service.EmailService;
+import com.mytickets.ticketingApp.service.StripeService;
 import com.mytickets.ticketingApp.service.TransactionService;
 import com.mytickets.ticketingApp.service.UserBalanceService;
+import com.stripe.exception.StripeException;
+import com.stripe.model.PaymentIntent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +40,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private StripeService stripeService;
+
     @Override
     @Transactional
     public Transaction createTicketPurchaseTransaction(Long ticketId, Long buyerId, String paymentMethod) {
@@ -59,7 +65,6 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setStatus(TransactionStatus.PENDING);
         transaction.setBuyer(buyer);
 
-        // For primary purchases, seller is typically the event creator or system
         if (ticket.getEvent() != null && ticket.getEvent().getCreator() != null) {
             transaction.setSeller(ticket.getEvent().getCreator());
         }
@@ -67,11 +72,20 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setTicket(ticket);
         transaction.setTransactionDate(LocalDateTime.now());
 
-        // Set payment intent based on method
-        if ("balance".equals(paymentMethod)) {
-            transaction.setPaymentIntentId("BALANCE_PENDING_" + System.currentTimeMillis());
+        // Create Stripe PaymentIntent for card payments
+        if ("card".equals(paymentMethod)) {
+            try {
+                String description = "Ticket for " + ticket.getEvent().getName();
+                PaymentIntent paymentIntent = stripeService.createPaymentIntent(
+                        ticket.getCurrentPrice(), "usd", description);
+
+                // Store the CLIENT SECRET, not the PaymentIntent ID
+                transaction.setPaymentIntentId(paymentIntent.getClientSecret());
+            } catch (StripeException e) {
+                throw new RuntimeException("Failed to create payment intent: " + e.getMessage());
+            }
         } else {
-            transaction.setPaymentIntentId("CARD_PENDING_" + System.currentTimeMillis());
+            transaction.setPaymentIntentId("BALANCE_PENDING_" + System.currentTimeMillis());
         }
 
         return transactionRepository.save(transaction);
@@ -118,11 +132,20 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setTicket(ticket);
         transaction.setTransactionDate(LocalDateTime.now());
 
-        // Set payment intent based on method
-        if ("balance".equals(paymentMethod)) {
-            transaction.setPaymentIntentId("BALANCE_PENDING_" + System.currentTimeMillis());
+        // Create Stripe PaymentIntent for card payments
+        if ("card".equals(paymentMethod)) {
+            try {
+                String description = "Resale ticket for " + ticket.getEvent().getName();
+                PaymentIntent paymentIntent = stripeService.createPaymentIntent(
+                        listing.getAskingPrice(), "usd", description);
+
+                // Store the CLIENT SECRET, not the PaymentIntent ID
+                transaction.setPaymentIntentId(paymentIntent.getClientSecret());
+            } catch (StripeException e) {
+                throw new RuntimeException("Failed to create payment intent: " + e.getMessage());
+            }
         } else {
-            transaction.setPaymentIntentId("CARD_PENDING_" + System.currentTimeMillis());
+            transaction.setPaymentIntentId("BALANCE_PENDING_" + System.currentTimeMillis());
         }
 
         return transactionRepository.save(transaction);
@@ -311,10 +334,6 @@ public class TransactionServiceImpl implements TransactionService {
                 System.err.println("Failed to send email notification: " + emailError.getMessage());
             }
 
-            // Log for debugging
-            System.out.println("Balance payment completed for transaction: " + savedTransaction.getId());
-            System.out.println("Amount deducted: " + transaction.getAmount());
-
             return savedTransaction;
 
         } catch (Exception e) {
@@ -325,6 +344,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
     }
 
+
     @Override
     @Transactional
     public Transaction processPayment(Long transactionId, String paymentMethod, String paymentDetails) {
@@ -332,10 +352,36 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new RuntimeException("Transaction not found with id: " + transactionId));
 
         try {
-            // In a real application, this would integrate with a payment gateway
-            // For now, we'll simulate successful payment processing
+            if ("credit_card".equals(paymentMethod)) {
+                // Extract PaymentIntent ID from client secret
+                String clientSecret = transaction.getPaymentIntentId();
+                String paymentIntentId = clientSecret.split("_secret_")[0]; // Extract PI ID from client secret
+
+                // Check payment status with Stripe
+                PaymentIntent paymentIntent = stripeService.retrievePaymentIntent(paymentIntentId);
+
+                // Check if payment is successful
+                if (!"succeeded".equals(paymentIntent.getStatus())) {
+                    throw new RuntimeException("Payment not successful. Status: " + paymentIntent.getStatus());
+                }
+
+                // Update transaction with actual PaymentIntent ID for future reference
+                transaction.setPaymentIntentId(paymentIntentId);
+
+                // For secondary purchases (resale), add money to seller's balance
+                if (transaction.getType() == TransactionType.SECONDARY_PURCHASE && transaction.getSeller() != null) {
+                    userBalanceService.addToBalance(
+                            transaction.getSeller().getId(),
+                            transaction.getAmount(),
+                            "Sale of ticket " + transaction.getTicket().getTicketNumber(),
+                            "Transaction",
+                            transaction.getId()
+                    );
+                }
+            }
+
+            // Update transaction status
             transaction.setStatus(TransactionStatus.COMPLETED);
-            transaction.setPaymentIntentId("PAYMENT_" + paymentMethod + "_" + System.currentTimeMillis());
 
             // Complete the purchase process
             if (transaction.getType() == TransactionType.PRIMARY_PURCHASE) {
@@ -354,7 +400,6 @@ public class TransactionServiceImpl implements TransactionService {
                     emailService.sendSaleNotificationEmail(transaction.getSeller(), savedTransaction);
                 }
             } catch (Exception emailError) {
-                // Log email error but don't fail the transaction
                 System.err.println("Failed to send email notification: " + emailError.getMessage());
             }
 
@@ -379,29 +424,32 @@ public class TransactionServiceImpl implements TransactionService {
             throw new RuntimeException("Only completed transactions can be refunded");
         }
 
-        // Mark transaction as refunded
-        transaction.setStatus(TransactionStatus.REFUNDED);
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-
-        if (transaction.getBuyer() != null) {
-            userBalanceService.addToBalance(
-                    transaction.getBuyer().getId(),
-                    transaction.getAmount(),
-                    "Refund for ticket " + transaction.getTicket().getTicketNumber() + " - " + reason,
-                    "Refund",
-                    transaction.getId()
-            );
-        }
-
-
         try {
-            // TODO: Implement refund notification email method in EmailService
-            // emailService.sendRefundNotificationEmail(transaction.getBuyer(), savedTransaction, reason);
-        } catch (Exception emailError) {
-            System.err.println("Failed to send refund notification email: " + emailError.getMessage());
-        }
+            // If it was a Stripe payment, process refund through Stripe
+            if (transaction.getPaymentIntentId() != null &&
+                    !transaction.getPaymentIntentId().startsWith("BALANCE_PAYMENT_")) {
+                stripeService.createRefund(transaction.getPaymentIntentId(), transaction.getAmount());
+            }
 
-        return savedTransaction;
+            // For all refunds, add money back to buyer's balance
+            if (transaction.getBuyer() != null) {
+                userBalanceService.addToBalance(
+                        transaction.getBuyer().getId(),
+                        transaction.getAmount(),
+                        "Refund for ticket " + transaction.getTicket().getTicketNumber() + " - " + reason,
+                        "Refund",
+                        transaction.getId()
+                );
+            }
+
+            // Mark transaction as refunded
+            transaction.setStatus(TransactionStatus.REFUNDED);
+            Transaction savedTransaction = transactionRepository.save(transaction);
+
+            return savedTransaction;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Refund processing failed: " + e.getMessage());
+        }
     }
 }
