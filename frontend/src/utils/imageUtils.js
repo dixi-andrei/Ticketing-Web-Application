@@ -3,7 +3,7 @@
 // Define better-looking placeholder images for each event type
 const categoryPlaceholders = {
     CONCERT: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=600&h=400&fit=crop&q=80",
-    SPORTS: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=600&h=400&fit=crop&q=80",
+    SPORTS: "https://images.unsplash.com/photo-1580383603685-3bee4adf9294?q=80&w=1935&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     THEATER: "https://images.unsplash.com/photo-1503095396549-807759245b35?w=600&h=400&fit=crop&q=80",
     CONFERENCE: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&q=80",
     FESTIVAL: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&h=400&fit=crop&q=80",

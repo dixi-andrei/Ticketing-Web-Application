@@ -1,17 +1,9 @@
 // src/pages/AdminDashboardPage.js
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Tab, Nav, Table, Badge, Button, Alert, Spinner, Form, Modal } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosConfig';
-import AuthContext from '../contexts/AuthContext';
 import * as adminAPI from '../api/adminApi';
-import * as eventAPI from '../api/eventApi';
-import * as venueAPI from '../api/venueApi';
-import * as userAPI from '../api/userApi';
-import * as ticketAPI from '../api/ticketApi';
-import * as transactionAPI from '../api/transactionApi';
-import * as pricingTierAPI from '../api/pricingTierApi';
-
+import PricingTierModal from '../components/admin/PricingTierModal';
 
 
 const AdminDashboardPage = () => {
@@ -38,6 +30,8 @@ const AdminDashboardPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
     const [statusFilter, setStatusFilter] = useState('');
+    const [showPricingTierModal, setShowPricingTierModal] = useState(false);
+    const [selectedEventForPricing, setSelectedEventForPricing] = useState(null);
 
     useEffect(() => {
         fetchDashboardData();
@@ -66,7 +60,11 @@ const AdminDashboardPage = () => {
         }
     };
 
-    // Modify your fetchDashboardData function to always guarantee arrays
+    const handleManagePricingTiers = (event) => {
+        setSelectedEventForPricing(event);
+        setShowPricingTierModal(true);
+    };
+
     const fetchDashboardData = async () => {
         setLoading(true);
         setError('');
@@ -75,36 +73,97 @@ const AdminDashboardPage = () => {
             // Fetch data based on active tab
             switch (activeTab) {
                 case 'events':
-                    const eventsResponse = await axiosInstance.get('/events');
-                    setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
+                    try {
+                        const eventsResponse = await axiosInstance.get('/events');
+                        setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
+                    } catch (err) {
+                        console.error('Error fetching events:', err);
+                        setEvents([]);
+                    }
                     break;
+
                 case 'venues':
-                    const venuesResponse = await axiosInstance.get('/venues');
-                    setVenues(Array.isArray(venuesResponse.data) ? venuesResponse.data : []);
+                    try {
+                        const venuesResponse = await axiosInstance.get('/venues');
+                        setVenues(Array.isArray(venuesResponse.data) ? venuesResponse.data : []);
+                    } catch (err) {
+                        console.error('Error fetching venues:', err);
+                        setVenues([]);
+                    }
                     break;
+
                 case 'users':
-                    const usersResponse = await axiosInstance.get('/users');
-                    setUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+                    try {
+                        const usersResponse = await axiosInstance.get('/users');
+                        setUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+                    } catch (err) {
+                        console.error('Error fetching users:', err);
+                        setUsers([]);
+                    }
                     break;
+
                 case 'transactions':
-                    const transactionsResponse = await axiosInstance.get('/transactions');
-                    setTransactions(Array.isArray(transactionsResponse.data) ? transactionsResponse.data : []);
+                    try {
+                        const transactionsResponse = await axiosInstance.get('/transactions');
+                        setTransactions(Array.isArray(transactionsResponse.data) ? transactionsResponse.data : []);
+                    } catch (err) {
+                        console.error('Error fetching transactions:', err);
+                        setTransactions([]);
+                    }
                     break;
+
                 case 'tickets':
-                    const ticketsResponse = await axiosInstance.get('/tickets');
-                    setTickets(Array.isArray(ticketsResponse.data) ? ticketsResponse.data : []);
+                    try {
+                        console.log('Fetching tickets data...'); // Debug log
+                        const ticketsResponse = await axiosInstance.get('/tickets');
+                        console.log('Tickets response:', ticketsResponse.data); // Debug log
+
+                        // Handle different response formats
+                        let ticketsData = [];
+                        if (Array.isArray(ticketsResponse.data)) {
+                            ticketsData = ticketsResponse.data;
+                        } else if (ticketsResponse.data && Array.isArray(ticketsResponse.data.content)) {
+                            ticketsData = ticketsResponse.data.content;
+                        } else {
+                            console.warn('Unexpected tickets response format:', ticketsResponse.data);
+                            ticketsData = [];
+                        }
+
+                        setTickets(ticketsData);
+                        console.log('Tickets set:', ticketsData.length, 'tickets'); // Debug log
+
+                    } catch (err) {
+                        console.error('Error fetching tickets:', err);
+                        console.error('Error details:', {
+                            status: err.response?.status,
+                            statusText: err.response?.statusText,
+                            data: err.response?.data,
+                            message: err.message
+                        });
+
+                        // Set empty array and show error
+                        setTickets([]);
+
+                        // Don't show error for 403 (permission) errors, just set empty data
+                        if (err.response?.status !== 403) {
+                            setError(`Failed to load tickets data: ${err.response?.data?.message || err.message}`);
+                        }
+                    }
                     break;
+
                 default:
                     break;
             }
             setLoading(false);
         } catch (err) {
-            console.error(`Error fetching ${activeTab} data:`, err);
+            console.error(`Error in fetchDashboardData for ${activeTab}:`, err);
             setError(`Failed to load ${activeTab} data. Please try again.`);
             setLoading(false);
 
-            // Set mock data for demonstration if API fails
-            setMockData(activeTab);
+            // Set mock data for demonstration if needed
+            if (activeTab === 'tickets') {
+                setMockData('tickets');
+            }
         }
     };
 
@@ -479,7 +538,6 @@ const AdminDashboardPage = () => {
         }
     };
 
-    // Tab content rendering functions
     const renderEventsTab = () => {
         return (
             <>
@@ -549,7 +607,7 @@ const AdminDashboardPage = () => {
                                     <td>{event.venue?.name}, {event.venue?.city}</td>
                                     <td>{event.eventType}</td>
                                     <td>
-                                        {event.availableTickets} / {event.totalTickets} available
+                                        {event.availableTickets || 0} / {event.totalTickets || 0} available
                                     </td>
                                     <td>
                                         <Badge bg={getStatusBadgeColor(event.status)}>
@@ -557,6 +615,15 @@ const AdminDashboardPage = () => {
                                         </Badge>
                                     </td>
                                     <td>
+                                        <Button
+                                            variant="outline-success"
+                                            size="sm"
+                                            className="me-2"
+                                            onClick={() => handleManagePricingTiers(event)}
+                                            title="Manage Pricing Tiers"
+                                        >
+                                            <i className="bi bi-tag"></i>
+                                        </Button>
                                         <Button
                                             variant="outline-primary"
                                             size="sm"
@@ -579,6 +646,16 @@ const AdminDashboardPage = () => {
                         </Table>
                     </div>
                 )}
+
+                {/* Add the PricingTierModal at the bottom */}
+                <PricingTierModal
+                    show={showPricingTierModal}
+                    onHide={() => setShowPricingTierModal(false)}
+                    event={selectedEventForPricing}
+                    onSuccess={() => {
+                        fetchDashboardData(); // Refresh the events data
+                    }}
+                />
             </>
         );
     };
@@ -1767,13 +1844,16 @@ const AdminDashboardPage = () => {
             quantity: 1,
             section: '',
             startRow: '',
-            startSeat: ''
+            startSeat: '',
+            seatIncrement: 1, // How much to increment seat numbers
+            seatType: 'numbered' // 'numbered', 'lettered', or 'general'
         });
 
         const [formErrors, setFormErrors] = useState({});
         const [isSubmitting, setIsSubmitting] = useState(false);
         const [selectedEvent, setSelectedEvent] = useState(null);
         const [pricingTiers, setPricingTiers] = useState([]);
+        const [previewSeats, setPreviewSeats] = useState([]);
 
         // Fetch pricing tiers when an event is selected
         useEffect(() => {
@@ -1789,6 +1869,9 @@ const AdminDashboardPage = () => {
                     } catch (err) {
                         console.error('Error fetching pricing tiers:', err);
                         setPricingTiers([]);
+                        setFormErrors({
+                            eventId: 'No pricing tiers found for this event. Please create pricing tiers first.'
+                        });
                     }
                 };
 
@@ -1799,10 +1882,52 @@ const AdminDashboardPage = () => {
             }
         }, [formData.eventId, events]);
 
+        // Generate seat preview when form data changes
+        useEffect(() => {
+            if (formData.quantity > 0 && formData.quantity <= 20) {
+                generateSeatPreview();
+            } else {
+                setPreviewSeats([]);
+            }
+        }, [formData.quantity, formData.startRow, formData.startSeat, formData.section, formData.seatType, formData.seatIncrement]);
+
+        const generateSeatPreview = () => {
+            const seats = [];
+            const startSeatNum = parseInt(formData.startSeat) || 1;
+
+            for (let i = 0; i < formData.quantity; i++) {
+                let seatNumber;
+
+                if (formData.seatType === 'numbered') {
+                    seatNumber = (startSeatNum + (i * formData.seatIncrement)).toString();
+                } else if (formData.seatType === 'lettered') {
+                    const startCharCode = formData.startSeat ? formData.startSeat.charCodeAt(0) : 65; // A
+                    seatNumber = String.fromCharCode(startCharCode + i);
+                } else {
+                    seatNumber = null; // General admission
+                }
+
+                seats.push({
+                    section: formData.section || null,
+                    row: formData.startRow || null,
+                    seat: seatNumber
+                });
+            }
+
+            setPreviewSeats(seats);
+        };
 
         const handleChange = (e) => {
             const { name, value } = e.target;
             setFormData({ ...formData, [name]: value });
+
+            // Clear specific error when user starts typing
+            if (formErrors[name]) {
+                setFormErrors(prev => ({
+                    ...prev,
+                    [name]: ''
+                }));
+            }
         };
 
         const validateForm = () => {
@@ -1810,6 +1935,14 @@ const AdminDashboardPage = () => {
             if (!formData.eventId) errors.eventId = "Event is required";
             if (!formData.pricingTierId) errors.pricingTierId = "Pricing tier is required";
             if (!formData.quantity || formData.quantity < 1) errors.quantity = "Quantity must be at least 1";
+            if (formData.quantity > 100) errors.quantity = "Maximum 100 tickets per batch";
+
+            if (formData.seatType !== 'general') {
+                if (!formData.startSeat) {
+                    errors.startSeat = "Starting seat is required for assigned seating";
+                }
+            }
+
             return errors;
         };
 
@@ -1822,16 +1955,18 @@ const AdminDashboardPage = () => {
                 setIsSubmitting(true);
 
                 try {
-                    // Call the API to create batch tickets
-                    await axiosInstance.post(`/tickets/batch`, null, {
-                        params: {
-                            eventId: formData.eventId,
-                            pricingTierId: formData.pricingTierId,
-                            quantity: formData.quantity,
-                            section: formData.section || null,
-                            startRow: formData.startRow || null,
-                            startSeat: formData.startSeat || null
-                        }
+                    // Prepare the request with individual ticket data
+                    const ticketData = previewSeats.map(seat => ({
+                        section: seat.section,
+                        row: seat.row,
+                        seat: seat.seat
+                    }));
+
+                    // Call the improved API endpoint
+                    await axiosInstance.post(`/tickets/batch-with-seating`, {
+                        eventId: formData.eventId,
+                        pricingTierId: formData.pricingTierId,
+                        tickets: ticketData
                     });
 
                     // Close the modal and refresh the tickets data
@@ -1839,7 +1974,21 @@ const AdminDashboardPage = () => {
                     fetchDashboardData();
 
                     // Show success message
-                    alert(`Successfully generated ${formData.quantity} tickets`);
+                    alert(`Successfully generated ${formData.quantity} tickets with seating information`);
+
+                    // Reset form
+                    setFormData({
+                        eventId: '',
+                        pricingTierId: '',
+                        quantity: 1,
+                        section: '',
+                        startRow: '',
+                        startSeat: '',
+                        seatIncrement: 1,
+                        seatType: 'numbered'
+                    });
+                    setPreviewSeats([]);
+
                 } catch (err) {
                     console.error('Error generating tickets:', err);
                     setFormErrors({
@@ -1851,8 +2000,18 @@ const AdminDashboardPage = () => {
             }
         };
 
+        const getSeatDisplayText = (seat) => {
+            const parts = [];
+            if (seat.section) parts.push(`Section ${seat.section}`);
+            if (seat.row) parts.push(`Row ${seat.row}`);
+            if (seat.seat) parts.push(`Seat ${seat.seat}`);
+
+            if (parts.length === 0) return "General Admission";
+            return parts.join(' ');
+        };
+
         return (
-            <Modal show={showBatchTicketModal} onHide={() => setBatchTicketModal(false)}>
+            <Modal show={showBatchTicketModal} onHide={() => setBatchTicketModal(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Generate Batch Tickets</Modal.Title>
                 </Modal.Header>
@@ -1862,8 +2021,9 @@ const AdminDashboardPage = () => {
                             <Alert variant="danger">{formErrors.submit}</Alert>
                         )}
 
+                        {/* Event Selection */}
                         <Form.Group className="mb-3">
-                            <Form.Label>Event</Form.Label>
+                            <Form.Label>Event *</Form.Label>
                             <Form.Select
                                 name="eventId"
                                 value={formData.eventId}
@@ -1882,44 +2042,91 @@ const AdminDashboardPage = () => {
                             </Form.Control.Feedback>
                         </Form.Group>
 
+                        {/* Pricing Tier Selection */}
                         <Form.Group className="mb-3">
-                            <Form.Label>Pricing Tier</Form.Label>
+                            <Form.Label>Pricing Tier *</Form.Label>
                             <Form.Select
                                 name="pricingTierId"
                                 value={formData.pricingTierId}
                                 onChange={handleChange}
                                 isInvalid={!!formErrors.pricingTierId}
-                                disabled={!formData.eventId}
+                                disabled={!formData.eventId || pricingTiers.length === 0}
                             >
                                 <option value="">Select a pricing tier</option>
                                 {pricingTiers.map(tier => (
                                     <option key={tier.id} value={tier.id}>
-                                        {tier.name} - ${tier.price?.toFixed(2)}
+                                        {tier.name} - ${tier.price?.toFixed(2)} ({tier.available || 0} available)
                                     </option>
                                 ))}
                             </Form.Select>
                             <Form.Control.Feedback type="invalid">
                                 {formErrors.pricingTierId}
                             </Form.Control.Feedback>
+                            {formData.eventId && pricingTiers.length === 0 && (
+                                <Form.Text className="text-danger">
+                                    No pricing tiers found. Please create pricing tiers for this event first.
+                                </Form.Text>
+                            )}
                         </Form.Group>
 
+                        {/* Quantity */}
                         <Form.Group className="mb-3">
-                            <Form.Label>Quantity</Form.Label>
+                            <Form.Label>Quantity *</Form.Label>
                             <Form.Control
                                 type="number"
                                 name="quantity"
                                 value={formData.quantity}
                                 onChange={handleChange}
                                 min="1"
+                                max="100"
                                 isInvalid={!!formErrors.quantity}
                             />
                             <Form.Control.Feedback type="invalid">
                                 {formErrors.quantity}
                             </Form.Control.Feedback>
+                            <Form.Text className="text-muted">
+                                Maximum 100 tickets per batch
+                            </Form.Text>
                         </Form.Group>
 
-                        <h5 className="mt-4 mb-3">Seating Information (Optional)</h5>
+                        <hr />
+                        <h5 className="mb-3">Seating Configuration</h5>
 
+                        {/* Seating Type */}
+                        <Form.Group className="mb-3">
+                            <Form.Label>Seating Type</Form.Label>
+                            <div>
+                                <Form.Check
+                                    inline
+                                    label="Numbered Seats (1, 2, 3...)"
+                                    name="seatType"
+                                    type="radio"
+                                    value="numbered"
+                                    checked={formData.seatType === 'numbered'}
+                                    onChange={handleChange}
+                                />
+                                <Form.Check
+                                    inline
+                                    label="Lettered Seats (A, B, C...)"
+                                    name="seatType"
+                                    type="radio"
+                                    value="lettered"
+                                    checked={formData.seatType === 'lettered'}
+                                    onChange={handleChange}
+                                />
+                                <Form.Check
+                                    inline
+                                    label="General Admission"
+                                    name="seatType"
+                                    type="radio"
+                                    value="general"
+                                    checked={formData.seatType === 'general'}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* Section */}
                         <Form.Group className="mb-3">
                             <Form.Label>Section</Form.Label>
                             <Form.Control
@@ -1927,36 +2134,88 @@ const AdminDashboardPage = () => {
                                 name="section"
                                 value={formData.section}
                                 onChange={handleChange}
-                                placeholder="e.g., A, VIP, etc."
+                                placeholder="e.g., A, VIP, Orchestra, etc."
                             />
+                            <Form.Text className="text-muted">
+                                Optional section identifier
+                            </Form.Text>
                         </Form.Group>
 
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Starting Row</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="startRow"
-                                        value={formData.startRow}
-                                        onChange={handleChange}
-                                        placeholder="e.g., 1, A, etc."
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Starting Seat</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="startSeat"
-                                        value={formData.startSeat}
-                                        onChange={handleChange}
-                                        placeholder="e.g., 1, A, etc."
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
+                        {formData.seatType !== 'general' && (
+                            <>
+                                <div className="row">
+                                    <div className="col-md-6">
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Row</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                name="startRow"
+                                                value={formData.startRow}
+                                                onChange={handleChange}
+                                                placeholder="e.g., 1, A, Front, etc."
+                                            />
+                                        </Form.Group>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Starting Seat *</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                name="startSeat"
+                                                value={formData.startSeat}
+                                                onChange={handleChange}
+                                                placeholder={formData.seatType === 'numbered' ? "e.g., 1" : "e.g., A"}
+                                                isInvalid={!!formErrors.startSeat}
+                                            />
+                                            <Form.Control.Feedback type="invalid">
+                                                {formErrors.startSeat}
+                                            </Form.Control.Feedback>
+                                        </Form.Group>
+                                    </div>
+                                </div>
+
+                                {formData.seatType === 'numbered' && (
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Seat Increment</Form.Label>
+                                        <Form.Select
+                                            name="seatIncrement"
+                                            value={formData.seatIncrement}
+                                            onChange={handleChange}
+                                        >
+                                            <option value={1}>1 (1, 2, 3, 4...)</option>
+                                            <option value={2}>2 (1, 3, 5, 7...)</option>
+                                            <option value={3}>3 (1, 4, 7, 10...)</option>
+                                        </Form.Select>
+                                        <Form.Text className="text-muted">
+                                            How much to increment each seat number
+                                        </Form.Text>
+                                    </Form.Group>
+                                )}
+                            </>
+                        )}
+
+                        {/* Seat Preview */}
+                        {previewSeats.length > 0 && (
+                            <div className="mb-3">
+                                <h6 className="mb-2">Seat Assignment Preview:</h6>
+                                <div className="border rounded p-3 bg-light">
+                                    <div className="row">
+                                        {previewSeats.slice(0, 10).map((seat, index) => (
+                                            <div key={index} className="col-md-6 col-lg-4 mb-1">
+                                                <small className="badge bg-primary me-1">
+                                                    {getSeatDisplayText(seat)}
+                                                </small>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {previewSeats.length > 10 && (
+                                        <small className="text-muted">
+                                            ...and {previewSeats.length - 10} more seats
+                                        </small>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="d-flex justify-content-end mt-4">
                             <Button variant="secondary" onClick={() => setBatchTicketModal(false)} className="me-2">
@@ -1965,9 +2224,9 @@ const AdminDashboardPage = () => {
                             <Button
                                 variant="primary"
                                 type="submit"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || pricingTiers.length === 0}
                             >
-                                {isSubmitting ? 'Generating...' : 'Generate Tickets'}
+                                {isSubmitting ? 'Generating...' : `Generate ${formData.quantity} Tickets`}
                             </Button>
                         </div>
                     </Form>

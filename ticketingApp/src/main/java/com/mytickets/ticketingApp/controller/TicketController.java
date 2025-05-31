@@ -1,5 +1,6 @@
 package com.mytickets.ticketingApp.controller;
 
+import com.mytickets.ticketingApp.config.BatchTicketRequest;
 import com.mytickets.ticketingApp.exception.ResourceNotFoundException;
 import com.mytickets.ticketingApp.model.Event;
 import com.mytickets.ticketingApp.model.PricingTier;
@@ -9,6 +10,7 @@ import com.mytickets.ticketingApp.repository.EventRepository;
 import com.mytickets.ticketingApp.repository.PricingTierRepository;
 import com.mytickets.ticketingApp.repository.TicketRepository;
 import com.mytickets.ticketingApp.security.services.UserDetailsImpl;
+import com.mytickets.ticketingApp.service.QRCodeService;
 import com.mytickets.ticketingApp.service.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -38,60 +40,116 @@ public class TicketController {
 
     @Autowired
     private PricingTierRepository pricingTierRepository;
+    @Autowired
+    private QRCodeService qRCodeService;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Map<String, Object>>> getAllTickets() {
-        List<Ticket> tickets = ticketService.getAllTickets();
+    public ResponseEntity<?> getAllTickets() {
+        try {
+            System.out.println("AdminDashboard: Fetching all tickets...");
 
-        List<Map<String, Object>> simplifiedTickets = tickets.stream()
-                .map(ticket -> {
+            List<Ticket> tickets = ticketRepository.findAll();
+            System.out.println("Found " + tickets.size() + " tickets in database");
+
+            if (tickets.isEmpty()) {
+                System.out.println("No tickets found in database");
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            List<Map<String, Object>> simplifiedTickets = new ArrayList<>();
+
+            for (Ticket ticket : tickets) {
+                try {
                     Map<String, Object> map = new HashMap<>();
+
+                    // Basic ticket information (with null checks)
                     map.put("id", ticket.getId());
-                    map.put("ticketNumber", ticket.getTicketNumber());
-                    map.put("originalPrice", ticket.getOriginalPrice());
-                    map.put("currentPrice", ticket.getCurrentPrice());
+                    map.put("ticketNumber", ticket.getTicketNumber() != null ? ticket.getTicketNumber() : "");
+                    map.put("originalPrice", ticket.getOriginalPrice() != null ? ticket.getOriginalPrice() : 0.0);
+                    map.put("currentPrice", ticket.getCurrentPrice() != null ? ticket.getCurrentPrice() : 0.0);
                     map.put("section", ticket.getSection());
                     map.put("row", ticket.getRow());
                     map.put("seat", ticket.getSeat());
-                    map.put("status", ticket.getStatus());
+                    map.put("status", ticket.getStatus() != null ? ticket.getStatus().toString() : "AVAILABLE");
                     map.put("purchaseDate", ticket.getPurchaseDate());
-                    map.put("used", ticket.getUsed());
+                    map.put("used", ticket.getUsed() != null ? ticket.getUsed() : false);
                     map.put("qrCodeUrl", ticket.getQrCodeUrl());
 
-                    // Add simplified event info
+                    // Add event info (with null checks)
+                    Map<String, Object> eventMap = new HashMap<>();
                     if (ticket.getEvent() != null) {
-                        Map<String, Object> eventMap = new HashMap<>();
                         eventMap.put("id", ticket.getEvent().getId());
-                        eventMap.put("name", ticket.getEvent().getName());
+                        eventMap.put("name", ticket.getEvent().getName() != null ? ticket.getEvent().getName() : "Unknown Event");
                         eventMap.put("eventDate", ticket.getEvent().getEventDate());
 
-                        // Add simplified venue info
+                        // Add venue info
+                        Map<String, Object> venueMap = new HashMap<>();
                         if (ticket.getEvent().getVenue() != null) {
-                            Map<String, Object> venueMap = new HashMap<>();
                             venueMap.put("id", ticket.getEvent().getVenue().getId());
-                            venueMap.put("name", ticket.getEvent().getVenue().getName());
+                            venueMap.put("name", ticket.getEvent().getVenue().getName() != null ?
+                                    ticket.getEvent().getVenue().getName() : "Unknown Venue");
                             venueMap.put("city", ticket.getEvent().getVenue().getCity());
-                            eventMap.put("venue", venueMap);
+                        } else {
+                            venueMap.put("id", null);
+                            venueMap.put("name", "No Venue");
+                            venueMap.put("city", "");
                         }
-
-                        map.put("event", eventMap);
+                        eventMap.put("venue", venueMap);
+                    } else {
+                        eventMap.put("id", null);
+                        eventMap.put("name", "No Event");
+                        eventMap.put("eventDate", null);
+                        eventMap.put("venue", Map.of("id", (Object) null, "name", "No Venue", "city", ""));
                     }
+                    map.put("event", eventMap);
 
-                    // Add simplified owner info
+                    // Add owner info (with null checks)
                     if (ticket.getOwner() != null) {
                         Map<String, Object> ownerMap = new HashMap<>();
                         ownerMap.put("id", ticket.getOwner().getId());
-                        ownerMap.put("firstName", ticket.getOwner().getFirstName());
-                        ownerMap.put("lastName", ticket.getOwner().getLastName());
+                        ownerMap.put("firstName", ticket.getOwner().getFirstName() != null ?
+                                ticket.getOwner().getFirstName() : "Unknown");
+                        ownerMap.put("lastName", ticket.getOwner().getLastName() != null ?
+                                ticket.getOwner().getLastName() : "User");
                         map.put("owner", ownerMap);
+                    } else {
+                        map.put("owner", null);
                     }
 
-                    return map;
-                })
-                .collect(Collectors.toList());
+                    // Add pricing tier info if available
+                    if (ticket.getPricingTier() != null) {
+                        Map<String, Object> tierMap = new HashMap<>();
+                        tierMap.put("id", ticket.getPricingTier().getId());
+                        tierMap.put("name", ticket.getPricingTier().getName() != null ?
+                                ticket.getPricingTier().getName() : "Unknown Tier");
+                        tierMap.put("price", ticket.getPricingTier().getPrice());
+                        map.put("pricingTier", tierMap);
+                    } else {
+                        map.put("pricingTier", null);
+                    }
 
-        return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
+                    simplifiedTickets.add(map);
+
+                } catch (Exception e) {
+                    System.err.println("Error processing ticket ID " + ticket.getId() + ": " + e.getMessage());
+                    // Continue with next ticket instead of failing completely
+                }
+            }
+
+            System.out.println("Successfully processed " + simplifiedTickets.size() + " tickets");
+            return ResponseEntity.ok(simplifiedTickets);
+
+        } catch (Exception e) {
+            System.err.println("Error in getAllTickets: " + e.getMessage());
+            e.printStackTrace();
+
+            // Return error response
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to fetch tickets: " + e.getMessage());
+            errorResponse.put("tickets", new ArrayList<>());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
     @GetMapping("/{id}")
@@ -116,98 +174,87 @@ public class TicketController {
 
     @GetMapping("/my-tickets")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Map<String, Object>>> getMyTickets() {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
-                .getAuthentication().getPrincipal();
+    public ResponseEntity<?> getMyTickets() {
+        try {
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                    .getAuthentication().getPrincipal();
 
-        List<Ticket> tickets = ticketService.getTicketsByOwner(userDetails.getId());
+            System.out.println("User " + userDetails.getId() + " requesting their tickets");
 
-        List<Map<String, Object>> simplifiedTickets = tickets.stream()
-                .map(ticket -> {
+            List<Ticket> tickets = ticketRepository.findByOwnerId(userDetails.getId());
+            System.out.println("Found " + tickets.size() + " tickets for user " + userDetails.getId());
+
+            if (tickets.isEmpty()) {
+                System.out.println("No tickets found for user " + userDetails.getId());
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            List<Map<String, Object>> simplifiedTickets = new ArrayList<>();
+
+            for (Ticket ticket : tickets) {
+                try {
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", ticket.getId());
-                    map.put("ticketNumber", ticket.getTicketNumber());
-                    map.put("originalPrice", ticket.getOriginalPrice());
-                    map.put("currentPrice", ticket.getCurrentPrice());
+                    map.put("ticketNumber", ticket.getTicketNumber() != null ? ticket.getTicketNumber() : "");
+                    map.put("originalPrice", ticket.getOriginalPrice() != null ? ticket.getOriginalPrice() : 0.0);
+                    map.put("currentPrice", ticket.getCurrentPrice() != null ? ticket.getCurrentPrice() : 0.0);
                     map.put("section", ticket.getSection());
                     map.put("row", ticket.getRow());
                     map.put("seat", ticket.getSeat());
-                    map.put("status", ticket.getStatus());
+                    map.put("status", ticket.getStatus() != null ? ticket.getStatus().toString() : "AVAILABLE");
                     map.put("purchaseDate", ticket.getPurchaseDate());
-                    map.put("used", ticket.getUsed());
+                    map.put("used", ticket.getUsed() != null ? ticket.getUsed() : false);
 
-                    // Add simplified event info
+                    // Add event info
+                    Map<String, Object> eventMap = new HashMap<>();
                     if (ticket.getEvent() != null) {
-                        Map<String, Object> eventMap = new HashMap<>();
                         eventMap.put("id", ticket.getEvent().getId());
-                        eventMap.put("name", ticket.getEvent().getName());
+                        eventMap.put("name", ticket.getEvent().getName() != null ? ticket.getEvent().getName() : "Unknown Event");
                         eventMap.put("eventDate", ticket.getEvent().getEventDate());
 
-                        // Add simplified venue info
+                        // Add venue info
+                        Map<String, Object> venueMap = new HashMap<>();
                         if (ticket.getEvent().getVenue() != null) {
-                            Map<String, Object> venueMap = new HashMap<>();
                             venueMap.put("id", ticket.getEvent().getVenue().getId());
-                            venueMap.put("name", ticket.getEvent().getVenue().getName());
+                            venueMap.put("name", ticket.getEvent().getVenue().getName() != null ?
+                                    ticket.getEvent().getVenue().getName() : "Unknown Venue");
                             venueMap.put("city", ticket.getEvent().getVenue().getCity());
-                            eventMap.put("venue", venueMap);
+                        } else {
+                            venueMap.put("id", null);
+                            venueMap.put("name", "No Venue");
+                            venueMap.put("city", "");
                         }
-
-                        map.put("event", eventMap);
+                        eventMap.put("venue", venueMap);
+                    } else {
+                        eventMap.put("id", null);
+                        eventMap.put("name", "No Event");
+                        eventMap.put("eventDate", null);
+                        eventMap.put("venue", Map.of("id", (Object) null, "name", "No Venue", "city", ""));
                     }
+                    map.put("event", eventMap);
 
-                    return map;
-                })
-                .collect(Collectors.toList());
+                    simplifiedTickets.add(map);
 
-        return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
+                } catch (Exception e) {
+                    System.err.println("Error processing user ticket ID " + ticket.getId() + ": " + e.getMessage());
+                }
+            }
+
+            System.out.println("Successfully processed " + simplifiedTickets.size() + " user tickets");
+            return ResponseEntity.ok(simplifiedTickets);
+
+        } catch (Exception e) {
+            System.err.println("Error in getMyTickets: " + e.getMessage());
+            e.printStackTrace();
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to fetch user tickets: " + e.getMessage());
+            errorResponse.put("tickets", new ArrayList<>());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
-    @GetMapping("/my-upcoming-tickets")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<List<Map<String, Object>>> getMyUpcomingTickets() {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
-                .getAuthentication().getPrincipal();
 
-        List<Ticket> tickets = ticketService.getUpcomingTicketsByOwner(userDetails.getId());
-
-        // Convert to simplified format to avoid circular references
-        List<Map<String, Object>> simplifiedTickets = tickets.stream()
-                .map(ticket -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", ticket.getId());
-                    map.put("ticketNumber", ticket.getTicketNumber());
-                    map.put("originalPrice", ticket.getOriginalPrice());
-                    map.put("currentPrice", ticket.getCurrentPrice());
-                    map.put("section", ticket.getSection());
-                    map.put("row", ticket.getRow());
-                    map.put("seat", ticket.getSeat());
-                    map.put("status", ticket.getStatus());
-
-                    // Add simplified event info
-                    if (ticket.getEvent() != null) {
-                        Map<String, Object> eventMap = new HashMap<>();
-                        eventMap.put("id", ticket.getEvent().getId());
-                        eventMap.put("name", ticket.getEvent().getName());
-                        eventMap.put("eventDate", ticket.getEvent().getEventDate());
-
-                        // Add simplified venue info
-                        if (ticket.getEvent().getVenue() != null) {
-                            Map<String, Object> venueMap = new HashMap<>();
-                            venueMap.put("id", ticket.getEvent().getVenue().getId());
-                            venueMap.put("name", ticket.getEvent().getVenue().getName());
-                            venueMap.put("city", ticket.getEvent().getVenue().getCity());
-                            eventMap.put("venue", venueMap);
-                        }
-
-                        map.put("event", eventMap);
-                    }
-
-                    return map;
-                })
-                .collect(Collectors.toList());
-
-        return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
-    }
 
 
         @PostMapping
@@ -297,6 +344,78 @@ public class TicketController {
         }
     }
 
+    @PostMapping("/batch-with-seating")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Ticket>> createTicketsBatchWithSeating(
+            @RequestBody BatchTicketRequest request) {
+
+        try {
+            Event event = eventRepository.findById(request.getEventId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Event", "id", request.getEventId()));
+
+            PricingTier pricingTier = pricingTierRepository.findById(request.getPricingTierId())
+                    .orElseThrow(() -> new ResourceNotFoundException("PricingTier", "id", request.getPricingTierId()));
+
+            List<Ticket> tickets = new ArrayList<>();
+            int quantity = request.getTickets().size();
+
+            for (BatchTicketRequest.TicketInfo ticketInfo : request.getTickets()) {
+                Ticket ticket = new Ticket();
+                ticket.setTicketNumber(UUID.randomUUID().toString());
+                ticket.setOriginalPrice(pricingTier.getPrice());
+                ticket.setCurrentPrice(pricingTier.getPrice());
+                ticket.setStatus(TicketStatus.AVAILABLE);
+                ticket.setEvent(event);
+                ticket.setPricingTier(pricingTier);
+
+                // Set seating information
+                ticket.setSection(ticketInfo.getSection());
+                ticket.setRow(ticketInfo.getRow());
+                ticket.setSeat(ticketInfo.getSeat());
+
+                // Generate QR code with enhanced content
+                String qrCodeContent = String.format("TICKET:%s|EVENT:%s|SEAT:%s",
+                        ticket.getTicketNumber(),
+                        event.getName(),
+                        getSeatDisplayString(ticketInfo.getSection(), ticketInfo.getRow(), ticketInfo.getSeat()));
+
+                try {
+                    String qrCodeBase64 = qRCodeService.generateQRCodeAsBase64(qrCodeContent, 200, 200);
+                    ticket.setQrCodeUrl(qrCodeBase64);
+                } catch (Exception e) {
+                    // Fallback if QR generation fails
+                    ticket.setQrCodeUrl("placeholder-" + ticket.getTicketNumber());
+                }
+
+                tickets.add(ticketRepository.save(ticket));
+            }
+
+            // Update event ticket counts
+            int totalTickets = event.getTotalTickets() != null ? event.getTotalTickets() : 0;
+            event.setTotalTickets(totalTickets + quantity);
+
+            int availableTickets = event.getAvailableTickets() != null ? event.getAvailableTickets() : 0;
+            event.setAvailableTickets(availableTickets + quantity);
+
+            eventRepository.save(event);
+
+            // Update pricing tier counts
+            int tierQuantity = pricingTier.getQuantity() != null ? pricingTier.getQuantity() : 0;
+            pricingTier.setQuantity(tierQuantity + quantity);
+
+            int tierAvailable = pricingTier.getAvailable() != null ? pricingTier.getAvailable() : 0;
+            pricingTier.setAvailable(tierAvailable + quantity);
+
+            pricingTierRepository.save(pricingTier);
+
+            return new ResponseEntity<>(tickets, HttpStatus.CREATED);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
     @PostMapping("/batch")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<Ticket>> createTicketsBatch(
@@ -359,6 +478,53 @@ public class TicketController {
     public ResponseEntity<Ticket> updateTicket(@PathVariable Long id, @Valid @RequestBody Ticket ticket) {
         Ticket updatedTicket = ticketService.updateTicket(id, ticket);
         return new ResponseEntity<>(updatedTicket, HttpStatus.OK);
+    }
+
+    @GetMapping("/my-upcoming-tickets")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getMyUpcomingTickets() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+
+        List<Ticket> tickets = ticketService.getUpcomingTicketsByOwner(userDetails.getId());
+
+        // Convert to simplified format to avoid circular references
+        List<Map<String, Object>> simplifiedTickets = tickets.stream()
+                .map(ticket -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", ticket.getId());
+                    map.put("ticketNumber", ticket.getTicketNumber());
+                    map.put("originalPrice", ticket.getOriginalPrice());
+                    map.put("currentPrice", ticket.getCurrentPrice());
+                    map.put("section", ticket.getSection());
+                    map.put("row", ticket.getRow());
+                    map.put("seat", ticket.getSeat());
+                    map.put("status", ticket.getStatus());
+
+                    // Add simplified event info
+                    if (ticket.getEvent() != null) {
+                        Map<String, Object> eventMap = new HashMap<>();
+                        eventMap.put("id", ticket.getEvent().getId());
+                        eventMap.put("name", ticket.getEvent().getName());
+                        eventMap.put("eventDate", ticket.getEvent().getEventDate());
+
+                        // Add simplified venue info
+                        if (ticket.getEvent().getVenue() != null) {
+                            Map<String, Object> venueMap = new HashMap<>();
+                            venueMap.put("id", ticket.getEvent().getVenue().getId());
+                            venueMap.put("name", ticket.getEvent().getVenue().getName());
+                            venueMap.put("city", ticket.getEvent().getVenue().getCity());
+                            eventMap.put("venue", venueMap);
+                        }
+
+                        map.put("event", eventMap);
+                    }
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return new ResponseEntity<>(simplifiedTickets, HttpStatus.OK);
     }
 
     @PutMapping("/{id}/status")
@@ -470,4 +636,47 @@ public class TicketController {
         ticketService.markTicketAsUsed(id);
         return new ResponseEntity<>(HttpStatus.OK);
     }
+
+    private String getSeatDisplayString(String section, String row, String seat) {
+        List<String> parts = new ArrayList<>();
+        if (section != null && !section.trim().isEmpty()) {
+            parts.add("Sec " + section);
+        }
+        if (row != null && !row.trim().isEmpty()) {
+            parts.add("Row " + row);
+        }
+        if (seat != null && !seat.trim().isEmpty()) {
+            parts.add("Seat " + seat);
+        }
+
+        if (parts.isEmpty()) {
+            return "GA"; // General Admission
+        }
+
+        return String.join(" ", parts);
+    }
+
+
+    private Map<String, Object> createPricingTierResponse(PricingTier tier) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", tier.getId());
+        response.put("name", tier.getName());
+        response.put("description", tier.getDescription());
+        response.put("price", tier.getPrice());
+        response.put("quantity", tier.getQuantity());
+        response.put("available", tier.getAvailable());
+        response.put("sectionId", tier.getSectionId());
+
+        if (tier.getEvent() != null) {
+            Map<String, Object> eventInfo = new HashMap<>();
+            eventInfo.put("id", tier.getEvent().getId());
+            eventInfo.put("name", tier.getEvent().getName());
+            response.put("event", eventInfo);
+        }
+
+        return response;
+    }
 }
+
+
+
