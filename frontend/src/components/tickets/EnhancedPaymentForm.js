@@ -6,7 +6,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { getCurrentBalance } from '../../api/userBalanceApi';
 import axiosInstance from '../../api/axiosConfig'; // Import your axios instance
 
-
+// id
 const StripePaymentForm = ({ amount, onPaymentComplete, onCancel, currentTransaction }) => {
     const stripe = useStripe();
     const elements = useElements();
